@@ -1,5 +1,5 @@
 import { createContext, useContext, useState } from 'react'
-import { users, getUser } from '../mockData'
+import { users, getUser, newId } from '../mockData'
 
 const AuthContext = createContext(null)
 
@@ -15,21 +15,50 @@ function loadUser() {
   }
 }
 
+function findByEmail(email) {
+  return users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase())
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(loadUser)
+
+  function saveUser(u) {
+    try {
+      localStorage.setItem(KEY, u._id)
+    } catch {
+      // storage blocked, user stays logged in until refresh
+    }
+    setUser(u)
+  }
 
   // fake login: find the user by email, any password works
   // week 3: this becomes a call to POST /api/auth/login
   function login(email) {
-    const found = users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase())
+    const found = findByEmail(email)
     if (!found) return false
 
-    try {
-      localStorage.setItem(KEY, found._id)
-    } catch {
-      // storage blocked, user stays logged in until refresh
+    saveUser(found)
+    return true
+  }
+
+  // fake sign up: adds the user to mockData and logs them in
+  // (they disappear on page refresh until the backend is ready)
+  // week 3: this becomes a call to POST /api/auth/register
+  function register({ name, email, role }) {
+    if (findByEmail(email)) return false
+
+    const newUser = {
+      _id: newId('u'),
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      role,
+      bio: '',
+      skills: [],
+      hourlyRate: 0,
+      ratingAvg: 0,
     }
-    setUser(found)
+    users.push(newUser)
+    saveUser(newUser)
     return true
   }
 
@@ -42,7 +71,7 @@ export function AuthProvider({ children }) {
     setUser(null)
   }
 
-  return <AuthContext.Provider value={{ user, login, logout }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, login, register, logout }}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {
