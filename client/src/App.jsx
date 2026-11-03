@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 
+import DashboardLayout from './layouts/DashboardLayout'
 import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
 import Dashboard from './pages/dashboard/Dashboard'
@@ -31,35 +32,38 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
 
-      <Route path="/dashboard" element={<Dashboard />} />
+      {/* every page below gets the navbar and sidebar */}
+      <Route element={<DashboardLayout />}>
+        <Route path="/dashboard" element={<Dashboard />} />
 
-      {/* profile */}
-      <Route path="/profile" element={<Profile />} />
-      <Route path="/users/:id" element={<PublicProfile />} />
+        {/* profile */}
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/users/:id" element={<PublicProfile />} />
 
-      {/* projects */}
-      <Route path="/projects" element={<ProjectList />} />
-      <Route path="/projects/new" element={<ProjectForm />} />
-      <Route path="/projects/:id" element={<ProjectDetail />} />
-      <Route path="/projects/:id/tasks" element={<KanbanBoard />} />
-      <Route path="/projects/:id/milestones" element={<MilestoneList />} />
-      <Route path="/projects/:id/proposal/new" element={<ProposalForm />} />
-      <Route path="/projects/:id/review" element={<ReviewForm />} />
-      <Route path="/proposals/:id" element={<ProposalView />} />
+        {/* projects */}
+        <Route path="/projects" element={<ProjectList />} />
+        <Route path="/projects/new" element={<ProjectForm />} />
+        <Route path="/projects/:id" element={<ProjectDetail />} />
+        <Route path="/projects/:id/tasks" element={<KanbanBoard />} />
+        <Route path="/projects/:id/milestones" element={<MilestoneList />} />
+        <Route path="/projects/:id/proposal/new" element={<ProposalForm />} />
+        <Route path="/projects/:id/review" element={<ReviewForm />} />
+        <Route path="/proposals/:id" element={<ProposalView />} />
 
-      {/* time */}
-      <Route path="/time" element={<TimeTracker />} />
-      <Route path="/timesheet" element={<Timesheet />} />
+        {/* time */}
+        <Route path="/time" element={<TimeTracker />} />
+        <Route path="/timesheet" element={<Timesheet />} />
 
-      {/* invoices */}
-      <Route path="/invoices" element={<InvoiceList />} />
-      <Route path="/invoices/new" element={<InvoiceForm />} />
-      <Route path="/invoices/:id" element={<InvoiceView />} />
+        {/* invoices */}
+        <Route path="/invoices" element={<InvoiceList />} />
+        <Route path="/invoices/new" element={<InvoiceForm />} />
+        <Route path="/invoices/:id" element={<InvoiceView />} />
 
-      <Route path="/chat" element={<ChatPage />} />
-      <Route path="/notifications" element={<NotificationsPage />} />
+        <Route path="/chat" element={<ChatPage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
 
-      <Route path="*" element={<NotFound />} />
+        <Route path="*" element={<NotFound />} />
+      </Route>
     </Routes>
   )
 }
