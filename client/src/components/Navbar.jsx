@@ -1,9 +1,17 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { FiMenu, FiBell, FiLogOut, FiZap } from 'react-icons/fi'
 import { useNotifications } from '../utils/notifications'
+import { useAuth } from '../context/AuthContext'
 
 function Navbar({ user, onMenuClick }) {
   const { unreadCount } = useNotifications(user._id)
+  const { logout } = useAuth()
+  const navigate = useNavigate()
+
+  function handleLogout() {
+    logout()
+    navigate('/login')
+  }
 
   // first letters of the name, e.g. "Sara Khan" -> "SK"
   const initials = user.name
@@ -37,9 +45,9 @@ function Navbar({ user, onMenuClick }) {
           </span>
         </Link>
 
-        <Link to="/login" className="btn btn-ghost btn-sm" aria-label="Log out">
+        <button className="btn btn-ghost btn-sm" onClick={handleLogout} aria-label="Log out">
           <FiLogOut size={18} />
-        </Link>
+        </button>
       </div>
     </header>
   )

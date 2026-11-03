@@ -2,12 +2,12 @@ import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import Sidebar from '../components/Sidebar'
-import { getCurrentUser } from '../mockData'
+import { useAuth } from '../context/AuthContext'
 import './layout.css'
 
 // navbar on top, sidebar on the left, the current page on the right
 function DashboardLayout() {
-  const user = getCurrentUser()
+  const { user } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
