@@ -34,6 +34,49 @@
   margin-top: var(--space-4);
 }
 
+/* ---------- role picker (register) ---------- */
+.role-title {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  margin-bottom: var(--space-1);
+}
+
+.role-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.role-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-3);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.role-option:hover {
+  border-color: var(--primary);
+}
+
+.role-option.selected {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.role-icon {
+  font-size: 20px;
+  color: var(--primary);
+}
+
 .demo-box {
   margin-top: var(--space-5);
   padding-top: var(--space-4);
