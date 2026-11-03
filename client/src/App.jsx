@@ -51,6 +51,7 @@ function App() {
         <Route path="/projects" element={<ProjectList />} />
         <Route path="/projects/new" element={<ProjectForm />} />
         <Route path="/projects/:id" element={<ProjectDetail />} />
+        <Route path="/projects/:id/edit" element={<ProjectForm />} />
         <Route path="/projects/:id/tasks" element={<KanbanBoard />} />
         <Route path="/projects/:id/milestones" element={<MilestoneList />} />
         <Route path="/projects/:id/proposal/new" element={<ProposalForm />} />
