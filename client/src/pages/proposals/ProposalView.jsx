@@ -1,6 +1,6 @@
 function ProposalView() {
   return (
-    <div>
+    <div className="page">
       <h2>Proposal</h2>
     </div>
   )

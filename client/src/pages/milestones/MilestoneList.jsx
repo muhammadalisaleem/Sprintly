@@ -1,6 +1,6 @@
 function MilestoneList() {
   return (
-    <div>
+    <div className="page">
       <h2>Milestones</h2>
     </div>
   )

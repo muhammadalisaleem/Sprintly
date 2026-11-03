@@ -1,6 +1,6 @@
 function KanbanBoard() {
   return (
-    <div>
+    <div className="page">
       <h2>Tasks</h2>
     </div>
   )

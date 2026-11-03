@@ -1,6 +1,6 @@
 function ProposalForm() {
   return (
-    <div>
+    <div className="page">
       <h2>New Proposal</h2>
     </div>
   )

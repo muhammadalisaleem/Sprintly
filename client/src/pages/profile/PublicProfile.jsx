@@ -1,6 +1,6 @@
 function PublicProfile() {
   return (
-    <div>
+    <div className="page">
       <h2>Freelancer Profile</h2>
     </div>
   )

@@ -1,6 +1,6 @@
 function ProjectForm() {
   return (
-    <div>
+    <div className="page">
       <h2>New Project</h2>
     </div>
   )

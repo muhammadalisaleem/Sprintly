@@ -1,6 +1,6 @@
 function ProjectDetail() {
   return (
-    <div>
+    <div className="page">
       <h2>Project Details</h2>
     </div>
   )
