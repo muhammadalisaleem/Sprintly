@@ -1,0 +1,57 @@
+.time-project-select {
+  width: auto;
+  min-width: 220px;
+}
+
+.time-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.timer-clock {
+  font-size: 44px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  margin-bottom: var(--space-4);
+  color: var(--text-muted);
+}
+
+.timer-clock.running {
+  color: var(--success);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+/* timesheet */
+.week-block {
+  margin-bottom: var(--space-4);
+}
+
+.week-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-3);
+}
+
+.week-total {
+  font-weight: 700;
+  color: var(--primary);
+}
+
+@media (max-width: 760px) {
+  .time-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .time-project-select {
+    width: 100%;
+  }
+}
