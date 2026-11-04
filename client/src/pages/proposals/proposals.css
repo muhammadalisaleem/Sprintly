@@ -1,0 +1,109 @@
+/* ---------- form ---------- */
+.proposal-form {
+  max-width: 680px;
+}
+
+.deliverable-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+
+/* ---------- view ---------- */
+.proposal-paper {
+  max-width: 760px;
+}
+
+.proposal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-5);
+}
+
+.proposal-parties {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-5);
+}
+
+.proposal-parties div,
+.proposal-numbers div {
+  display: flex;
+  flex-direction: column;
+}
+
+.proposal-section {
+  margin-bottom: var(--space-5);
+}
+
+.proposal-section h4 {
+  margin-bottom: var(--space-2);
+}
+
+.proposal-section ul {
+  padding-left: var(--space-5);
+}
+
+.proposal-numbers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  background: var(--bg);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+}
+
+.proposal-numbers strong {
+  font-size: var(--font-size-lg);
+}
+
+.proposal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+/* the agreement shown once the client accepts */
+.contract {
+  margin-top: var(--space-5);
+  padding: var(--space-4);
+  border: 1px solid var(--success);
+  background: var(--success-light);
+  border-radius: var(--radius);
+}
+
+.contract h4 {
+  color: var(--success);
+  margin-bottom: var(--space-2);
+}
+
+.signatures {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.signatures div {
+  border-top: 1px solid var(--text-muted);
+  padding-top: var(--space-1);
+  display: flex;
+  flex-direction: column;
+}
+
+@media print {
+  .proposal-paper {
+    max-width: none;
+    box-shadow: none;
+    border: none;
+  }
+}
