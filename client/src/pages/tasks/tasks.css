@@ -1,0 +1,133 @@
+.kanban {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(240px, 1fr));
+  gap: var(--space-4);
+  overflow-x: auto;
+  padding-bottom: var(--space-2);
+}
+
+.kanban-column {
+  background: #eceef4;
+  border-radius: var(--radius-lg);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+}
+
+.kanban-column-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  font-size: 14px;
+  padding: var(--space-1) var(--space-1) var(--space-3);
+}
+
+.kanban-count {
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 12px;
+  border-radius: 999px;
+  padding: 0 8px;
+}
+
+.kanban-list {
+  flex: 1;
+  min-height: 120px;
+  border-radius: var(--radius);
+  transition: background-color 0.15s;
+}
+
+.kanban-list.over {
+  background: var(--primary-light);
+}
+
+.kanban-empty {
+  text-align: center;
+  padding: var(--space-5) 0;
+}
+
+/* ---------- task card ---------- */
+.task-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
+.task-card:hover {
+  border-color: var(--primary);
+}
+
+/* client view: cards can't be clicked or dragged */
+.task-card.readonly {
+  cursor: default;
+}
+
+.task-card.readonly:hover {
+  border-color: var(--border);
+}
+
+.task-card.dragging {
+  box-shadow: var(--shadow-lg);
+}
+
+.task-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.task-title {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.task-desc {
+  margin-top: var(--space-1);
+}
+
+.task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.task-meta span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.task-meta .late {
+  color: var(--danger);
+}
+
+/* the back link is also used on the full page board */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: var(--space-3);
+}
+
+/* ---------- modal form ---------- */
+.modal-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.modal-actions .row {
+  margin-left: auto;
+}
