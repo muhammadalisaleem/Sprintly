@@ -1,0 +1,38 @@
+.review-form {
+  max-width: 560px;
+}
+
+.review-form form {
+  margin-top: var(--space-5);
+}
+
+.star-picker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+
+.star-btn {
+  background: none;
+  border: none;
+  padding: 2px;
+  font-size: 30px;
+  color: #f59e0b;
+  cursor: pointer;
+  display: flex;
+}
+
+.star-btn:hover {
+  transform: scale(1.1);
+}
+
+.star-word {
+  margin-left: var(--space-3);
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.star-error {
+  margin-bottom: var(--space-3);
+}
