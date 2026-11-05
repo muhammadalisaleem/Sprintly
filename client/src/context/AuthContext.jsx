@@ -62,6 +62,14 @@ export function AuthProvider({ children }) {
     return true
   }
 
+  // save profile changes (name, bio, skills, hourly rate)
+  // week 3: this becomes PUT /api/users/me
+  function updateProfile(data) {
+    const saved = getUser(user._id)
+    Object.assign(saved, data)
+    setUser({ ...saved }) // new object so the navbar shows the new name
+  }
+
   function logout() {
     try {
       localStorage.removeItem(KEY)
@@ -71,7 +79,7 @@ export function AuthProvider({ children }) {
     setUser(null)
   }
 
-  return <AuthContext.Provider value={{ user, login, register, logout }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, login, register, updateProfile, logout }}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {
