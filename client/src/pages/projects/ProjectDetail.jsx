@@ -1,12 +1,15 @@
+import { useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { FiArrowLeft, FiEdit2, FiFolder, FiSend } from 'react-icons/fi'
+import { FiArrowLeft, FiEdit2, FiFolder, FiSend, FiCheckCircle, FiStar } from 'react-icons/fi'
 import Button from '../../components/Button'
 import Card from '../../components/Card'
 import StatusBadge from '../../components/StatusBadge'
 import EmptyState from '../../components/EmptyState'
+import Stars from '../../components/Stars'
 import { useAuth } from '../../context/AuthContext'
-import { getProject, getUser, tasks, milestones, timeEntries, proposals } from '../../mockData'
+import { getProject, getUser, tasks, milestones, timeEntries, proposals, reviews } from '../../mockData'
 import { formatDate, formatHours, formatMoney, isPast } from '../../utils/format'
+import { addNotification } from '../../utils/notifications'
 import { getProgress } from './projectUtils'
 import KanbanBoard from '../tasks/KanbanBoard'
 import MilestoneList from '../milestones/MilestoneList'
@@ -19,6 +22,9 @@ function ProjectDetail() {
   const { id } = useParams()
   const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
+
+  // mockData is changed directly, this just tells React to draw again
+  const [, setVersion] = useState(0)
 
   const project = getProject(id)
   const isMember = project && (project.freelancer === user._id || project.client === user._id)
@@ -81,7 +87,13 @@ function ProjectDetail() {
       </div>
 
       {tab === 'overview' && (
-        <Overview project={project} freelancer={freelancer} client={client} isFreelancer={isFreelancer} />
+        <Overview
+          project={project}
+          freelancer={freelancer}
+          client={client}
+          user={user}
+          onChange={() => setVersion((v) => v + 1)}
+        />
       )}
       {tab === 'tasks' && <KanbanBoard projectId={project._id} />}
       {tab === 'milestones' && <MilestoneList projectId={project._id} />}
@@ -92,7 +104,8 @@ function ProjectDetail() {
   )
 }
 
-function Overview({ project, freelancer, client, isFreelancer }) {
+function Overview({ project, freelancer, client, user, onChange }) {
+  const isFreelancer = user.role === 'freelancer'
   const progress = getProgress(project._id)
   const late = project.status !== 'completed' && isPast(project.deadline)
 
@@ -195,8 +208,77 @@ function Overview({ project, freelancer, client, isFreelancer }) {
             <p className="muted">The freelancer hasn't sent a proposal yet.</p>
           )}
         </Card>
+
+        {project.status !== 'proposal' && (
+          <Completion project={project} user={user} client={client} onChange={onChange} />
+        )}
       </div>
     </div>
+  )
+}
+
+// finish the project, then both sides can leave a review
+function Completion({ project, user, client, onChange }) {
+  const isFreelancer = user._id === project.freelancer
+  const myReview = reviews.find((r) => r.project === project._id && r.from === user._id)
+
+  // week 3: this becomes PATCH /api/projects/:id/complete
+  function completeProject() {
+    const openMilestones = milestones.filter((m) => m.project === project._id && !m.completed).length
+    const message =
+      openMilestones > 0
+        ? `${openMilestones} milestone(s) are not complete yet. Mark the project as complete anyway?`
+        : 'Mark this project as complete?'
+    if (!window.confirm(message)) return
+
+    project.status = 'completed'
+    project.completedAt = new Date().toISOString()
+    addNotification(
+      client._id,
+      `${user.name} marked ${project.title} as complete. Leave a review!`,
+      `/projects/${project._id}/review`
+    )
+    onChange()
+  }
+
+  if (project.status === 'active') {
+    return (
+      <Card title="Completion">
+        {isFreelancer ? (
+          <>
+            <p className="muted" style={{ marginBottom: 12 }}>
+              Finished all the work? Mark the project as complete so you can both leave a review.
+            </p>
+            <Button variant="success" size="sm" onClick={completeProject}>
+              <FiCheckCircle /> Mark as complete
+            </Button>
+          </>
+        ) : (
+          <p className="muted">The freelancer will mark the project as complete when the work is done.</p>
+        )}
+      </Card>
+    )
+  }
+
+  // completed
+  return (
+    <Card title="Completion">
+      <p className="completed-text">
+        <FiCheckCircle /> Completed{project.completedAt && ` on ${formatDate(project.completedAt)}`}
+      </p>
+      {myReview ? (
+        <div className="row">
+          <span className="muted">Your review:</span>
+          <Stars rating={myReview.rating} size={14} />
+        </div>
+      ) : (
+        <Link to={`/projects/${project._id}/review`}>
+          <Button size="sm">
+            <FiStar /> Leave a review
+          </Button>
+        </Link>
+      )}
+    </Card>
   )
 }
 
