@@ -1,0 +1,72 @@
+.milestone-summary {
+  margin-bottom: var(--space-4);
+}
+
+.milestone-money {
+  margin-top: var(--space-2);
+}
+
+.milestone {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.milestone:last-child {
+  border-bottom: none;
+}
+
+.milestone-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary-light);
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.milestone-info {
+  flex: 1;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+}
+
+.milestone-date {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.milestone-amount {
+  font-weight: 600;
+  min-width: 90px;
+  text-align: right;
+}
+
+/* completed: green tick, faded title */
+.milestone.done .milestone-icon {
+  background: var(--success-light);
+  color: var(--success);
+}
+
+.milestone.done strong {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+/* overdue: red */
+.milestone.late .milestone-icon {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+.milestone.late .milestone-date {
+  color: var(--danger);
+  font-weight: 500;
+}
