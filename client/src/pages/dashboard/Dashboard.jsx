@@ -1,9 +1,10 @@
+import { getCurrentUser } from '../../mockData'
+import FreelancerDashboard from './FreelancerDashboard'
+import ClientDashboard from './ClientDashboard'
+
 function Dashboard() {
-  return (
-    <div>
-      <h2>Dashboard</h2>
-    </div>
-  )
+  const user = getCurrentUser()
+  return user.role === 'client' ? <ClientDashboard user={user} /> : <FreelancerDashboard user={user} />
 }
 
 export default Dashboard
