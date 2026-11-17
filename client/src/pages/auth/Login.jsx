@@ -6,7 +6,7 @@ import Input from '../../components/Input'
 import { useAuth } from '../../context/AuthContext'
 import './auth.css'
 
-// accounts from mockData you can log in with (any password)
+// demo accounts, add them with: node seed.js (in the server folder)
 const demoAccounts = [
   { email: 'sara@sprintly.dev', role: 'freelancer' },
   { email: 'hamza@acme.com', role: 'client' },
@@ -18,13 +18,14 @@ function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
   // already logged in, no need to see this page
   if (user) {
     return <Navigate to="/dashboard" replace />
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
 
     if (!email || !password) {
@@ -32,10 +33,13 @@ function Login() {
       return
     }
 
-    if (login(email)) {
+    setLoading(true)
+    try {
+      await login(email, password)
       navigate('/dashboard')
-    } else {
-      setError('No account found with this email')
+    } catch (err) {
+      setError(err.response?.data?.message || 'could not connect to server')
+      setLoading(false)
     }
   }
 
@@ -66,8 +70,8 @@ function Login() {
 
           {error && <p className="form-error auth-error">{error}</p>}
 
-          <Button type="submit" full>
-            Log in
+          <Button type="submit" full disabled={loading}>
+            {loading ? 'Logging in...' : 'Log in'}
           </Button>
         </form>
 
@@ -76,7 +80,7 @@ function Login() {
         </p>
 
         <div className="demo-box">
-          <p className="muted">Demo accounts (any password):</p>
+          <p className="muted">Demo accounts (password 123456):</p>
           {demoAccounts.map((acc) => (
             <button
               key={acc.email}
@@ -84,7 +88,7 @@ function Login() {
               className="demo-account"
               onClick={() => {
                 setEmail(acc.email)
-                setPassword('demo')
+                setPassword('123456')
                 setError('')
               }}
             >

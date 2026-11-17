@@ -1,81 +1,70 @@
 import { createContext, useContext, useState } from 'react'
-import { users, getUser, newId } from '../mockData'
+import api from '../api'
+import { users, getUser } from '../mockData'
 
 const AuthContext = createContext(null)
 
-// same key getCurrentUser() in mockData reads, so every page sees the same user
-const KEY = 'mockUserId'
-
+// get the saved user when the page loads
 function loadUser() {
-  try {
-    const id = localStorage.getItem(KEY)
-    return id ? getUser(id) || null : null
-  } catch {
-    return null
+  const saved = localStorage.getItem('user')
+  if (saved) {
+    return JSON.parse(saved)
   }
+  return null
 }
 
-function findByEmail(email) {
-  return users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase())
+// TEMP: projects, tasks etc are still mock data and use ids like 'u1'
+// so we use the mock user with the same email for now
+// remove this when those pages get data from the server
+function fixMockId(u) {
+  const mock = users.find((m) => m.email === u.email)
+  if (mock) {
+    localStorage.setItem('mockUserId', mock._id)
+    return { ...u, _id: mock._id }
+  }
+  return u
 }
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(loadUser)
 
-  function saveUser(u) {
-    try {
-      localStorage.setItem(KEY, u._id)
-    } catch {
-      // storage blocked, user stays logged in until refresh
-    }
-    setUser(u)
+  function saveUser(token, u) {
+    const appUser = fixMockId(u)
+    localStorage.setItem('token', token)
+    localStorage.setItem('user', JSON.stringify(appUser))
+    setUser(appUser)
   }
 
-  // fake login: find the user by email, any password works
-  // week 3: this becomes a call to POST /api/auth/login
-  function login(email) {
-    const found = findByEmail(email)
-    if (!found) return false
-
-    saveUser(found)
-    return true
+  async function login(email, password) {
+    const res = await api.post('/auth/login', { email, password })
+    saveUser(res.data.token, res.data.user)
   }
 
-  // fake sign up: adds the user to mockData and logs them in
-  // (they disappear on page refresh until the backend is ready)
-  // week 3: this becomes a call to POST /api/auth/register
-  function register({ name, email, role }) {
-    if (findByEmail(email)) return false
-
-    const newUser = {
-      _id: newId('u'),
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      role,
-      bio: '',
-      skills: [],
-      hourlyRate: 0,
-      ratingAvg: 0,
-    }
-    users.push(newUser)
-    saveUser(newUser)
-    return true
+  async function register(form) {
+    const res = await api.post('/auth/register', {
+      name: form.name,
+      email: form.email,
+      password: form.password,
+      role: form.role
+    })
+    saveUser(res.data.token, res.data.user)
   }
 
-  // save profile changes (name, bio, skills, hourly rate)
-  // week 3: this becomes PUT /api/users/me
+  // only changes it in the browser for now
+  // todo: send it to the server (PUT /api/users/me)
   function updateProfile(data) {
-    const saved = getUser(user._id)
-    Object.assign(saved, data)
-    setUser({ ...saved }) // new object so the navbar shows the new name
+    const newUser = { ...user, ...data }
+    // also change the mock user so the public profile shows it
+    const mock = getUser(user._id)
+    if (mock) Object.assign(mock, data)
+    localStorage.setItem('user', JSON.stringify(newUser))
+    setUser(newUser)
   }
 
   function logout() {
-    try {
-      localStorage.removeItem(KEY)
-    } catch {
-      // storage blocked, nothing to remove
-    }
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    localStorage.removeItem('mockUserId')
     setUser(null)
   }
 

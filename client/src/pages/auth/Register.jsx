@@ -22,6 +22,8 @@ function Register() {
     role: 'freelancer',
   })
   const [errors, setErrors] = useState({})
+  const [serverError, setServerError] = useState('')
+  const [loading, setLoading] = useState(false)
 
   if (user) {
     return <Navigate to="/dashboard" replace />
@@ -41,17 +43,21 @@ function Register() {
     return errs
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
 
     const errs = validate()
     setErrors(errs)
     if (Object.keys(errs).length > 0) return
 
-    if (register(form)) {
+    setServerError('')
+    setLoading(true)
+    try {
+      await register(form)
       navigate('/dashboard')
-    } else {
-      setErrors({ email: 'An account with this email already exists' })
+    } catch (err) {
+      setServerError(err.response?.data?.message || 'could not connect to server')
+      setLoading(false)
     }
   }
 
@@ -107,8 +113,10 @@ function Register() {
             error={errors.confirm}
           />
 
-          <Button type="submit" full>
-            Sign up
+          {serverError && <p className="form-error auth-error">{serverError}</p>}
+
+          <Button type="submit" full disabled={loading}>
+            {loading ? 'Creating account...' : 'Sign up'}
           </Button>
         </form>
 
