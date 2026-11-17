@@ -7,7 +7,8 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ['freelancer', 'client'], required: true },
   bio: { type: String, default: '' },
   skills: [String],
-  hourlyRate: { type: Number, default: 0 }
+  hourlyRate: { type: Number, default: 0 },
+  ratingAvg: { type: Number, default: 0 }
 }, { timestamps: true })
 
 module.exports = mongoose.model('User', userSchema)
