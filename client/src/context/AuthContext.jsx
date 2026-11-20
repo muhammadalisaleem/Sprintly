@@ -1,6 +1,6 @@
 import { createContext, useContext, useState } from 'react'
 import api from '../api'
-import { users, getUser } from '../mockData'
+import { users } from '../mockData'
 
 const AuthContext = createContext(null)
 
@@ -8,31 +8,31 @@ const AuthContext = createContext(null)
 function loadUser() {
   const saved = localStorage.getItem('user')
   if (saved) {
-    return JSON.parse(saved)
+    const u = JSON.parse(saved)
+    // old saved users had mock ids like u1, make them login again
+    if (u._id.length === 24) return u
   }
   return null
 }
 
-// TEMP: projects, tasks etc are still mock data and use ids like 'u1'
-// so we use the mock user with the same email for now
-// remove this when those pages get data from the server
-function fixMockId(u) {
+// TEMP: some pages still use mockData and getCurrentUser() reads mockUserId,
+// so save the mock id of the same email for them. user._id stays the real id
+// remove this when all pages get data from the server
+function saveMockId(u) {
   const mock = users.find((m) => m.email === u.email)
   if (mock) {
     localStorage.setItem('mockUserId', mock._id)
-    return { ...u, _id: mock._id }
   }
-  return u
 }
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(loadUser)
 
   function saveUser(token, u) {
-    const appUser = fixMockId(u)
+    saveMockId(u)
     localStorage.setItem('token', token)
-    localStorage.setItem('user', JSON.stringify(appUser))
-    setUser(appUser)
+    localStorage.setItem('user', JSON.stringify(u))
+    setUser(u)
   }
 
   async function login(email, password) {
@@ -54,9 +54,6 @@ export function AuthProvider({ children }) {
   // todo: send it to the server (PUT /api/users/me)
   function updateProfile(data) {
     const newUser = { ...user, ...data }
-    // also change the mock user so the public profile shows it
-    const mock = getUser(user._id)
-    if (mock) Object.assign(mock, data)
     localStorage.setItem('user', JSON.stringify(newUser))
     setUser(newUser)
   }
