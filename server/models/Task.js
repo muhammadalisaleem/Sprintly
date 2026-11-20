@@ -7,7 +7,8 @@ const taskSchema = new mongoose.Schema({
   description: { type: String, default: '' },
   status: { type: String, enum: ['todo', 'doing', 'done'], default: 'todo' },
   priority: { type: String, enum: ['low', 'medium', 'high'], default: 'medium' },
-  dueDate: Date
+  dueDate: Date,
+  order: { type: Number, default: 0 } // position inside its column
 }, { timestamps: true })
 
 module.exports = mongoose.model('Task', taskSchema)

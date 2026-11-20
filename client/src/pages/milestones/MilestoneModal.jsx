@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Modal from '../../components/Modal'
 import Input from '../../components/Input'
 import Button from '../../components/Button'
-import { milestones, tasks, newId } from '../../mockData'
+import api from '../../api'
 
 // add a new milestone (milestone = {}) or edit an existing one
 function MilestoneModal({ milestone, projectId, onClose, onSaved }) {
@@ -10,16 +10,18 @@ function MilestoneModal({ milestone, projectId, onClose, onSaved }) {
 
   const [form, setForm] = useState({
     title: milestone.title || '',
-    dueDate: milestone.dueDate || '',
-    amount: milestone.amount || '',
+    dueDate: milestone.dueDate ? milestone.dueDate.slice(0, 10) : '',
+    amount: milestone.amount ?? '',
   })
   const [errors, setErrors] = useState({})
+  const [serverError, setServerError] = useState('')
+  const [saving, setSaving] = useState(false)
 
   function handleChange(e) {
     setForm({ ...form, [e.target.name]: e.target.value })
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
 
     const errs = {}
@@ -31,26 +33,31 @@ function MilestoneModal({ milestone, projectId, onClose, onSaved }) {
 
     const data = { title: form.title.trim(), dueDate: form.dueDate, amount: Number(form.amount) }
 
-    // week 3: these become PUT /api/milestones/:id and POST /api/projects/:id/milestones
-    if (editing) {
-      Object.assign(milestone, data)
-    } else {
-      milestones.push({ _id: newId('m'), project: projectId, completed: false, ...data })
+    setSaving(true)
+    setServerError('')
+    try {
+      if (editing) {
+        await api.put('/milestones/' + milestone._id, data)
+      } else {
+        await api.post('/projects/' + projectId + '/milestones', data)
+      }
+      onSaved()
+    } catch (err) {
+      setServerError(err.response?.data?.message || 'could not save milestone')
+      setSaving(false)
     }
-    onSaved()
   }
 
-  function handleDelete() {
+  // server also takes the milestone off its tasks
+  async function handleDelete() {
     if (!window.confirm('Delete this milestone?')) return
 
-    // week 3: this becomes DELETE /api/milestones/:id
-    milestones.splice(milestones.indexOf(milestone), 1)
-
-    // tasks linked to it are no longer linked to anything
-    tasks.forEach((t) => {
-      if (t.milestone === milestone._id) t.milestone = ''
-    })
-    onSaved()
+    try {
+      await api.delete('/milestones/' + milestone._id)
+      onSaved()
+    } catch (err) {
+      setServerError(err.response?.data?.message || 'could not delete milestone')
+    }
   }
 
   return (
@@ -78,6 +85,8 @@ function MilestoneModal({ milestone, projectId, onClose, onSaved }) {
           />
         </div>
 
+        {serverError && <p className="form-error">{serverError}</p>}
+
         <div className="modal-actions">
           {editing && (
             <Button variant="danger" onClick={handleDelete}>
@@ -88,7 +97,7 @@ function MilestoneModal({ milestone, projectId, onClose, onSaved }) {
             <Button variant="secondary" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit">{editing ? 'Save' : 'Add milestone'}</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Saving...' : editing ? 'Save' : 'Add milestone'}</Button>
           </div>
         </div>
       </form>

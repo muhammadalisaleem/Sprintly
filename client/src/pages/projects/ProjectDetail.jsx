@@ -9,9 +9,8 @@ import Stars from '../../components/Stars'
 import Loader from '../../components/Loader'
 import { useAuth } from '../../context/AuthContext'
 import api from '../../api'
-import { tasks, milestones, timeEntries, reviews } from '../../mockData'
+import { reviews } from '../../mockData'
 import { formatDate, formatHours, formatMoney, isPast } from '../../utils/format'
-import { getProgress } from './projectUtils'
 import KanbanBoard from '../tasks/KanbanBoard'
 import MilestoneList from '../milestones/MilestoneList'
 import TimeTracker from '../time/TimeTracker'
@@ -121,14 +120,21 @@ function ProjectDetail() {
 
 function Overview({ project, freelancer, client, user, proposals, onChange }) {
   const isFreelancer = user.role === 'freelancer'
-  const progress = getProgress(project._id)
   const late = project.status !== 'completed' && isPast(project.deadline)
 
-  const projectTasks = tasks.filter((t) => t.project === project._id)
+  const [projectTasks, setProjectTasks] = useState([])
+  const [projectMilestones, setProjectMilestones] = useState([])
+  const [hours, setHours] = useState(0)
+
+  useEffect(() => {
+    api.get('/projects/' + project._id + '/tasks').then((res) => setProjectTasks(res.data)).catch(() => {})
+    api.get('/projects/' + project._id + '/milestones').then((res) => setProjectMilestones(res.data)).catch(() => {})
+    api.get('/projects/' + project._id + '/time').then((res) => setHours(res.data.totalHours)).catch(() => {})
+  }, [project._id])
+
   const doneTasks = projectTasks.filter((t) => t.status === 'done').length
-  const projectMilestones = milestones.filter((m) => m.project === project._id)
+  const progress = projectTasks.length ? Math.round((doneTasks / projectTasks.length) * 100) : 0
   const doneMilestones = projectMilestones.filter((m) => m.completed).length
-  const hours = timeEntries.filter((e) => e.project === project._id).reduce((sum, e) => sum + e.hours, 0)
 
   // latest proposal for this project (server sends newest first)
   const proposal = proposals[0]
@@ -236,7 +242,13 @@ function Completion({ project, user, client, onChange }) {
   const myReview = reviews.find((r) => r.project === project._id && r.from === user._id)
 
   async function completeProject() {
-    const openMilestones = milestones.filter((m) => m.project === project._id && !m.completed).length
+    let openMilestones = 0
+    try {
+      const res = await api.get('/projects/' + project._id + '/milestones')
+      openMilestones = res.data.filter((m) => !m.completed).length
+    } catch (err) {
+      console.log(err)
+    }
     const message =
       openMilestones > 0
         ? `${openMilestones} milestone(s) are not complete yet. Mark the project as complete anyway?`

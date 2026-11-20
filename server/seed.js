@@ -1,4 +1,4 @@
-// adds the demo users, projects and proposals to the database
+// adds the demo users, projects, proposals, milestones and tasks to the database
 // run with: node seed.js
 // all of them have password 123456
 const mongoose = require('mongoose')
@@ -7,6 +7,8 @@ require('dotenv').config()
 const User = require('./models/User')
 const Project = require('./models/Project')
 const Proposal = require('./models/Proposal')
+const Milestone = require('./models/Milestone')
+const Task = require('./models/Task')
 
 const users = [
   { name: 'Sara Khan', email: 'sara@sprintly.dev', role: 'freelancer', bio: 'Full-stack developer who builds fast, clean web apps.', skills: ['React', 'Node.js', 'MongoDB'], hourlyRate: 40 },
@@ -40,6 +42,42 @@ const projects = [
   }
 ]
 
+// milestones and tasks, by project title. task.milestone is the milestone title
+const milestones = {
+  'E-commerce website': [
+    { title: 'Design mockups', dueDate: '2026-10-10', amount: 600, completed: true },
+    { title: 'Frontend pages', dueDate: '2026-10-31', amount: 1200, completed: false },
+    { title: 'Payment integration', dueDate: '2026-11-25', amount: 1200, completed: false }
+  ],
+  'Mobile app landing page': [
+    { title: 'Landing page design', dueDate: '2026-10-20', amount: 400, completed: true },
+    { title: 'Final build', dueDate: '2026-11-10', amount: 800, completed: false }
+  ],
+  'Brand identity design': [
+    { title: 'Logo concepts', dueDate: '2026-09-05', amount: 400, completed: true },
+    { title: 'Brand guide', dueDate: '2026-09-28', amount: 500, completed: true }
+  ]
+}
+
+const tasks = {
+  'E-commerce website': [
+    { title: 'Homepage mockup', status: 'done', priority: 'high', dueDate: '2026-10-05', milestone: 'Design mockups' },
+    { title: 'Product page', description: 'Gallery, price, add to cart.', status: 'doing', priority: 'high', dueDate: '2026-10-28', milestone: 'Frontend pages' },
+    { title: 'Cart page', status: 'todo', priority: 'medium', dueDate: '2026-10-31', milestone: 'Frontend pages' },
+    { title: 'Stripe checkout', status: 'todo', priority: 'medium', dueDate: '2026-11-20', milestone: 'Payment integration' }
+  ],
+  'Mobile app landing page': [
+    { title: 'Hero section design', status: 'done', priority: 'high', dueDate: '2026-10-15', milestone: 'Landing page design' },
+    { title: 'Build responsive layout', status: 'doing', priority: 'high', dueDate: '2026-11-01', milestone: 'Final build' },
+    { title: 'Contact form', status: 'todo', priority: 'low', dueDate: '2026-11-08', milestone: 'Final build' }
+  ],
+  'Brand identity design': [
+    { title: 'Three logo options', status: 'done', priority: 'high', dueDate: '2026-09-04', milestone: 'Logo concepts' },
+    { title: 'Colour palette', status: 'done', priority: 'medium', dueDate: '2026-09-20', milestone: 'Brand guide' },
+    { title: 'Brand guide PDF', status: 'done', priority: 'medium', dueDate: '2026-09-27', milestone: 'Brand guide' }
+  ]
+}
+
 async function seed() {
   await mongoose.connect(process.env.MONGO_URI)
 
@@ -56,16 +94,15 @@ async function seed() {
   }
 
   for (let p of projects) {
-    const exists = await Project.findOne({ title: p.title })
-    if (exists) {
+    let project = await Project.findOne({ title: p.title })
+    if (project) {
       console.log('already there: ' + p.title)
-      continue
-    }
+    } else {
 
     const freelancer = await User.findOne({ email: p.freelancer })
     const client = await User.findOne({ email: p.client })
 
-    const project = await Project.create({
+    project = await Project.create({
       title: p.title,
       description: p.description,
       freelancer: freelancer._id,
@@ -77,6 +114,22 @@ async function seed() {
     })
     await Proposal.create({ ...p.proposal, project: project._id })
     console.log('added: ' + p.title)
+    }
+
+    // milestones + tasks, only if the project has none yet
+    const hasMilestones = await Milestone.findOne({ project: project._id })
+    if (hasMilestones || !milestones[p.title]) continue
+
+    const made = {}
+    for (let m of milestones[p.title]) {
+      const ms = await Milestone.create({ ...m, project: project._id })
+      made[m.title] = ms._id
+    }
+    let order = 0
+    for (let t of tasks[p.title] || []) {
+      await Task.create({ ...t, milestone: made[t.milestone], project: project._id, order: order++ })
+    }
+    console.log('added milestones and tasks: ' + p.title)
   }
 
   mongoose.disconnect()

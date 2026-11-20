@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
 import { FiPlus, FiCalendar, FiFlag, FiArrowLeft } from 'react-icons/fi'
 import Button from '../../components/Button'
 import StatusBadge from '../../components/StatusBadge'
 import { useAuth } from '../../context/AuthContext'
-import { tasks, milestones, getProject } from '../../mockData'
+import Loader from '../../components/Loader'
+import api from '../../api'
 import { formatDate, isPast } from '../../utils/format'
 import TaskModal from './TaskModal'
 import './tasks.css'
@@ -16,36 +17,40 @@ const columns = [
   { status: 'done', title: 'Done' },
 ]
 
-// move a task to a new column and position inside the mockData array
-// week 3: this becomes PATCH /api/tasks/:id/move
-function moveTask(task, newStatus, newIndex) {
-  task.status = newStatus
-
-  tasks.splice(tasks.indexOf(task), 1)
-  const column = tasks.filter((t) => t.project === task.project && t.status === newStatus)
-
-  if (newIndex < column.length) {
-    tasks.splice(tasks.indexOf(column[newIndex]), 0, task)
-  } else if (column.length > 0) {
-    tasks.splice(tasks.indexOf(column[column.length - 1]) + 1, 0, task)
-  } else {
-    tasks.push(task)
-  }
-}
-
 // projectId is passed when this is shown as a tab inside ProjectDetail
 function KanbanBoard({ projectId }) {
   const params = useParams()
   const id = projectId || params.id
   const { user } = useAuth()
-  const project = getProject(id)
-
-  // mockData is changed directly, this just tells React to draw again
-  const [, setVersion] = useState(0)
-  const refresh = () => setVersion((v) => v + 1)
+  const [project, setProject] = useState(null)
+  const [tasks, setTasks] = useState([])
+  const [milestones, setMilestones] = useState([])
+  const [loading, setLoading] = useState(true)
 
   // null = closed, {} = new task, a task = edit that task
   const [modalTask, setModalTask] = useState(null)
+
+  function loadTasks() {
+    return api.get('/projects/' + id + '/tasks').then((res) => setTasks(res.data))
+  }
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const p = await api.get('/projects/' + id)
+        setProject(p.data)
+        const m = await api.get('/projects/' + id + '/milestones')
+        setMilestones(m.data)
+        await loadTasks()
+      } catch (err) {
+        console.log(err)
+      }
+      setLoading(false)
+    }
+    load()
+  }, [id])
+
+  if (loading) return <Loader />
 
   if (!project) {
     return (
@@ -56,17 +61,37 @@ function KanbanBoard({ projectId }) {
   }
 
   // only the project's freelancer can change tasks, the client can just look
-  const canEdit = user._id === project.freelancer
-  const projectTasks = tasks.filter((t) => t.project === id)
+  const canEdit = user._id === project.freelancer._id
+  const projectTasks = tasks
 
   function handleDragEnd(result) {
     const { draggableId, source, destination } = result
     if (!destination) return
     if (destination.droppableId === source.droppableId && destination.index === source.index) return
 
+    const newStatus = destination.droppableId
+
+    // move it on the screen first so it doesnt jump back while waiting
     const task = tasks.find((t) => t._id === draggableId)
-    moveTask(task, destination.droppableId, destination.index)
-    refresh()
+    const others = tasks.filter((t) => t._id !== draggableId)
+    const column = others.filter((t) => t.status === newStatus)
+    const moved = { ...task, status: newStatus }
+    let newList
+    if (destination.index < column.length) {
+      const before = column[destination.index]
+      newList = [...others]
+      newList.splice(others.indexOf(before), 0, moved)
+    } else {
+      newList = [...others, moved]
+    }
+    setTasks(newList)
+
+    api.patch('/tasks/' + draggableId + '/move', { status: newStatus, index: destination.index })
+      .then(() => loadTasks())
+      .catch((err) => {
+        alert(err.response?.data?.message || 'could not move task')
+        loadTasks()
+      })
   }
 
   function milestoneName(milestoneId) {
@@ -166,10 +191,11 @@ function KanbanBoard({ projectId }) {
         <TaskModal
           task={modalTask}
           projectId={id}
+          milestones={milestones}
           onClose={() => setModalTask(null)}
           onSaved={() => {
             setModalTask(null)
-            refresh()
+            loadTasks()
           }}
         />
       )}
