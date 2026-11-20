@@ -2,6 +2,7 @@ const express = require('express')
 const Proposal = require('../models/Proposal')
 const Project = require('../models/Project')
 const auth = require('../middleware/auth')
+const notify = require('../utils/notify')
 
 const router = express.Router()
 
@@ -79,7 +80,7 @@ router.post('/', auth, async (req, res) => {
     const proposal = new Proposal({ project, scope, deliverables, amount, timeline })
     await proposal.save()
 
-    // todo: notify(p.client, ...)
+    await notify(p.client, req.user.name + ' sent you a proposal for ' + p.title, '/proposals/' + proposal._id)
 
     res.json(proposal)
   } catch (err) {
@@ -111,7 +112,7 @@ router.put('/:id/accept', auth, async (req, res) => {
     project.budget = proposal.amount
     await project.save()
 
-    // todo: notify(project.freelancer, ...)
+    await notify(project.freelancer, req.user.name + ' accepted your proposal for ' + project.title, '/proposals/' + proposal._id)
 
     res.json(proposal)
   } catch (err) {
@@ -139,7 +140,7 @@ router.put('/:id/reject', auth, async (req, res) => {
     proposal.status = 'rejected'
     await proposal.save()
 
-    // todo: notify(project.freelancer, ...)
+    await notify(project.freelancer, req.user.name + ' rejected your proposal for ' + project.title, '/proposals/' + proposal._id)
 
     res.json(proposal)
   } catch (err) {
