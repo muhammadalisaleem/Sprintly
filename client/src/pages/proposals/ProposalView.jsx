@@ -1,28 +1,34 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { FiArrowLeft, FiCheck, FiX, FiPrinter, FiFileText, FiSend } from 'react-icons/fi'
 import Button from '../../components/Button'
 import Card from '../../components/Card'
 import StatusBadge from '../../components/StatusBadge'
 import EmptyState from '../../components/EmptyState'
+import Loader from '../../components/Loader'
 import { useAuth } from '../../context/AuthContext'
-import { proposals, getProject, getUser } from '../../mockData'
+import api from '../../api'
 import { formatDate, formatMoney } from '../../utils/format'
-import { addNotification } from '../../utils/notifications'
 import './proposals.css'
 
 function ProposalView() {
   const { id } = useParams()
   const { user } = useAuth()
 
-  // mockData is changed directly, this just tells React to draw again
-  const [, setVersion] = useState(0)
+  const [proposal, setProposal] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  const proposal = proposals.find((p) => p._id === id)
-  const project = proposal && getProject(proposal.project)
-  const isMember = project && (project.freelancer === user._id || project.client === user._id)
+  // the server only sends it to the freelancer or the client of the project
+  useEffect(() => {
+    api.get('/proposals/' + id)
+      .then((res) => setProposal(res.data))
+      .catch(() => setProposal(null))
+      .finally(() => setLoading(false))
+  }, [id])
 
-  if (!isMember) {
+  if (loading) return <Loader />
+
+  if (!proposal) {
     return (
       <div className="page">
         <Card>
@@ -40,26 +46,28 @@ function ProposalView() {
     )
   }
 
-  const freelancer = getUser(project.freelancer)
-  const client = getUser(project.client)
-  const isClient = user._id === project.client
+  const project = proposal.project
+  const freelancer = project.freelancer
+  const client = project.client
+  const isClient = user._id === client._id
 
-  // week 3: these become PATCH /api/proposals/:id/accept and /reject
-  function accept() {
-    proposal.status = 'accepted'
-    proposal.respondedAt = new Date().toISOString()
-    project.status = 'active'
-    project.budget = proposal.amount
-    addNotification(freelancer._id, `${client.name} accepted your proposal for ${project.title}`, `/proposals/${proposal._id}`)
-    setVersion((v) => v + 1)
+  async function accept() {
+    try {
+      const res = await api.put('/proposals/' + id + '/accept')
+      setProposal({ ...proposal, status: res.data.status, updatedAt: res.data.updatedAt })
+    } catch (err) {
+      alert(err.response?.data?.message || 'something went wrong')
+    }
   }
 
-  function reject() {
+  async function reject() {
     if (!window.confirm('Reject this proposal?')) return
-    proposal.status = 'rejected'
-    proposal.respondedAt = new Date().toISOString()
-    addNotification(freelancer._id, `${client.name} rejected your proposal for ${project.title}`, `/proposals/${proposal._id}`)
-    setVersion((v) => v + 1)
+    try {
+      const res = await api.put('/proposals/' + id + '/reject')
+      setProposal({ ...proposal, status: res.data.status, updatedAt: res.data.updatedAt })
+    } catch (err) {
+      alert(err.response?.data?.message || 'something went wrong')
+    }
   }
 
   return (
@@ -156,7 +164,7 @@ function ProposalView() {
             <h4>Agreement</h4>
             <p>
               {client.name} accepted this proposal
-              {proposal.respondedAt && ` on ${formatDate(proposal.respondedAt)}`}. Both parties agree to the scope,
+              {` on ${formatDate(proposal.updatedAt)}`}. Both parties agree to the scope,
               deliverables, amount and timeline above.
             </p>
             <div className="signatures">

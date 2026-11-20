@@ -1,33 +1,47 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { FiArrowLeft, FiPlus, FiTrash2, FiFileText } from 'react-icons/fi'
 import Button from '../../components/Button'
 import Card from '../../components/Card'
 import Input from '../../components/Input'
 import EmptyState from '../../components/EmptyState'
+import Loader from '../../components/Loader'
 import { useAuth } from '../../context/AuthContext'
-import { proposals, getProject, newId } from '../../mockData'
-import { addNotification } from '../../utils/notifications'
+import api from '../../api'
 import './proposals.css'
 
 function ProposalForm() {
   const { id } = useParams()
   const { user } = useAuth()
   const navigate = useNavigate()
-  const project = getProject(id)
 
-  const [form, setForm] = useState({
-    scope: '',
-    amount: project ? project.budget : '',
-    timeline: '',
-  })
+  const [project, setProject] = useState(null)
+  const [openProposal, setOpenProposal] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [form, setForm] = useState({ scope: '', amount: '', timeline: '' })
   const [deliverables, setDeliverables] = useState([''])
   const [errors, setErrors] = useState({})
+  const [serverError, setServerError] = useState('')
+  const [sending, setSending] = useState(false)
 
-  // a new proposal is only allowed when there is no pending or accepted one
-  const openProposal = proposals.find((p) => p.project === id && p.status !== 'rejected')
+  useEffect(() => {
+    api.get('/projects/' + id)
+      .then((res) => {
+        setProject(res.data)
+        setForm((f) => ({ ...f, amount: res.data.budget }))
+        return api.get('/proposals/project/' + id)
+      })
+      .then((res) => {
+        // a new proposal is only allowed when there is no pending or accepted one
+        setOpenProposal(res.data.find((p) => p.status !== 'rejected') || null)
+      })
+      .catch(() => setProject(null))
+      .finally(() => setLoading(false))
+  }, [id])
 
-  if (!project || project.freelancer !== user._id || openProposal) {
+  if (loading) return <Loader />
+
+  if (!project || project.freelancer._id !== user._id || openProposal) {
     return (
       <div className="page">
         <Card>
@@ -59,7 +73,7 @@ function ProposalForm() {
     setDeliverables(deliverables.filter((_, i) => i !== index))
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
 
     const filled = deliverables.map((d) => d.trim()).filter(Boolean)
@@ -71,20 +85,21 @@ function ProposalForm() {
     setErrors(errs)
     if (Object.keys(errs).length > 0) return
 
-    // week 3: this becomes POST /api/projects/:id/proposals
-    const proposal = {
-      _id: newId('pr'),
-      project: id,
-      scope: form.scope.trim(),
-      deliverables: filled,
-      amount: Number(form.amount),
-      timeline: form.timeline.trim(),
-      status: 'pending',
-      createdAt: new Date().toISOString(),
+    setSending(true)
+    setServerError('')
+    try {
+      const res = await api.post('/proposals', {
+        project: id,
+        scope: form.scope.trim(),
+        deliverables: filled,
+        amount: Number(form.amount),
+        timeline: form.timeline.trim()
+      })
+      navigate('/proposals/' + res.data._id)
+    } catch (err) {
+      setServerError(err.response?.data?.message || 'could not send proposal')
+      setSending(false)
     }
-    proposals.push(proposal)
-    addNotification(project.client, `${user.name} sent you a proposal for ${project.title}`, `/proposals/${proposal._id}`)
-    navigate(`/proposals/${proposal._id}`)
   }
 
   return (
@@ -154,11 +169,15 @@ function ProposalForm() {
             />
           </div>
 
+          {serverError && <p className="form-error">{serverError}</p>}
+
           <div className="form-actions">
             <Button variant="secondary" onClick={() => navigate(-1)}>
               Cancel
             </Button>
-            <Button type="submit">Send proposal</Button>
+            <Button type="submit" disabled={sending}>
+              {sending ? 'Sending...' : 'Send proposal'}
+            </Button>
           </div>
         </form>
       </Card>

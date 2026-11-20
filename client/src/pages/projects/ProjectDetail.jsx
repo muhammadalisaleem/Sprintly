@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { FiArrowLeft, FiEdit2, FiFolder, FiSend, FiCheckCircle, FiStar } from 'react-icons/fi'
 import Button from '../../components/Button'
@@ -6,11 +6,11 @@ import Card from '../../components/Card'
 import StatusBadge from '../../components/StatusBadge'
 import EmptyState from '../../components/EmptyState'
 import Stars from '../../components/Stars'
+import Loader from '../../components/Loader'
 import { useAuth } from '../../context/AuthContext'
-import { getProject, getUser, tasks, milestones, timeEntries, proposals, reviews } from '../../mockData'
+import api from '../../api'
+import { reviews } from '../../mockData'
 import { formatDate, formatHours, formatMoney, isPast } from '../../utils/format'
-import { addNotification } from '../../utils/notifications'
-import { getProgress } from './projectUtils'
 import KanbanBoard from '../tasks/KanbanBoard'
 import MilestoneList from '../milestones/MilestoneList'
 import TimeTracker from '../time/TimeTracker'
@@ -23,13 +23,26 @@ function ProjectDetail() {
   const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
 
-  // mockData is changed directly, this just tells React to draw again
-  const [, setVersion] = useState(0)
+  const [project, setProject] = useState(null)
+  const [proposals, setProposals] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  const project = getProject(id)
-  const isMember = project && (project.freelancer === user._id || project.client === user._id)
+  useEffect(() => {
+    setLoading(true)
+    // the server only sends it if we are the freelancer or the client
+    api.get('/projects/' + id)
+      .then((res) => {
+        setProject(res.data)
+        return api.get('/proposals/project/' + id)
+      })
+      .then((res) => setProposals(res.data))
+      .catch(() => setProject(null))
+      .finally(() => setLoading(false))
+  }, [id])
 
-  if (!isMember) {
+  if (loading) return <Loader />
+
+  if (!project) {
     return (
       <div className="page">
         <Card>
@@ -48,8 +61,8 @@ function ProjectDetail() {
   }
 
   const isFreelancer = user.role === 'freelancer'
-  const freelancer = getUser(project.freelancer)
-  const client = getUser(project.client)
+  const freelancer = project.freelancer
+  const client = project.client
 
   // clients don't track time, so they don't get the time tab
   const tabs = ['overview', 'tasks', 'milestones', 'invoices', 'chat']
@@ -69,7 +82,7 @@ function ProjectDetail() {
           <h2>{project.title}</h2>
           <StatusBadge status={project.status} />
         </div>
-        {isFreelancer && (
+        {freelancer._id === user._id && (
           <Link to={`/projects/${project._id}/edit`}>
             <Button variant="secondary">
               <FiEdit2 /> Edit
@@ -92,7 +105,8 @@ function ProjectDetail() {
           freelancer={freelancer}
           client={client}
           user={user}
-          onChange={() => setVersion((v) => v + 1)}
+          proposals={proposals}
+          onChange={(changes) => setProject({ ...project, ...changes })}
         />
       )}
       {tab === 'tasks' && <KanbanBoard projectId={project._id} />}
@@ -104,21 +118,26 @@ function ProjectDetail() {
   )
 }
 
-function Overview({ project, freelancer, client, user, onChange }) {
+function Overview({ project, freelancer, client, user, proposals, onChange }) {
   const isFreelancer = user.role === 'freelancer'
-  const progress = getProgress(project._id)
   const late = project.status !== 'completed' && isPast(project.deadline)
 
-  const projectTasks = tasks.filter((t) => t.project === project._id)
-  const doneTasks = projectTasks.filter((t) => t.status === 'done').length
-  const projectMilestones = milestones.filter((m) => m.project === project._id)
-  const doneMilestones = projectMilestones.filter((m) => m.completed).length
-  const hours = timeEntries.filter((e) => e.project === project._id).reduce((sum, e) => sum + e.hours, 0)
+  const [projectTasks, setProjectTasks] = useState([])
+  const [projectMilestones, setProjectMilestones] = useState([])
+  const [hours, setHours] = useState(0)
 
-  // latest proposal for this project
-  const proposal = proposals
-    .filter((p) => p.project === project._id)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
+  useEffect(() => {
+    api.get('/projects/' + project._id + '/tasks').then((res) => setProjectTasks(res.data)).catch(() => {})
+    api.get('/projects/' + project._id + '/milestones').then((res) => setProjectMilestones(res.data)).catch(() => {})
+    api.get('/projects/' + project._id + '/time').then((res) => setHours(res.data.totalHours)).catch(() => {})
+  }, [project._id])
+
+  const doneTasks = projectTasks.filter((t) => t.status === 'done').length
+  const progress = projectTasks.length ? Math.round((doneTasks / projectTasks.length) * 100) : 0
+  const doneMilestones = projectMilestones.filter((m) => m.completed).length
+
+  // latest proposal for this project (server sends newest first)
+  const proposal = proposals[0]
 
   return (
     <div className="overview-grid">
@@ -219,26 +238,29 @@ function Overview({ project, freelancer, client, user, onChange }) {
 
 // finish the project, then both sides can leave a review
 function Completion({ project, user, client, onChange }) {
-  const isFreelancer = user._id === project.freelancer
+  const isFreelancer = user._id === project.freelancer._id
   const myReview = reviews.find((r) => r.project === project._id && r.from === user._id)
 
-  // week 3: this becomes PATCH /api/projects/:id/complete
-  function completeProject() {
-    const openMilestones = milestones.filter((m) => m.project === project._id && !m.completed).length
+  async function completeProject() {
+    let openMilestones = 0
+    try {
+      const res = await api.get('/projects/' + project._id + '/milestones')
+      openMilestones = res.data.filter((m) => !m.completed).length
+    } catch (err) {
+      console.log(err)
+    }
     const message =
       openMilestones > 0
         ? `${openMilestones} milestone(s) are not complete yet. Mark the project as complete anyway?`
         : 'Mark this project as complete?'
     if (!window.confirm(message)) return
 
-    project.status = 'completed'
-    project.completedAt = new Date().toISOString()
-    addNotification(
-      client._id,
-      `${user.name} marked ${project.title} as complete. Leave a review!`,
-      `/projects/${project._id}/review`
-    )
-    onChange()
+    try {
+      const res = await api.put('/projects/' + project._id + '/complete')
+      onChange({ status: res.data.status, completedAt: res.data.completedAt })
+    } catch (err) {
+      alert(err.response?.data?.message || 'could not complete project')
+    }
   }
 
   if (project.status === 'active') {

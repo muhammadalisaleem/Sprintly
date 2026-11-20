@@ -1,13 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { FiFolder } from 'react-icons/fi'
 import Button from '../../components/Button'
 import Card from '../../components/Card'
 import Input from '../../components/Input'
 import EmptyState from '../../components/EmptyState'
+import Loader from '../../components/Loader'
 import { useAuth } from '../../context/AuthContext'
-import { projects, users, getProject, getUser, newId } from '../../mockData'
-import { addNotification } from '../../utils/notifications'
+import api from '../../api'
 import './projects.css'
 
 // used for both /projects/new and /projects/:id/edit
@@ -17,19 +17,46 @@ function ProjectForm() {
   const navigate = useNavigate()
 
   const editing = Boolean(id)
-  const project = editing ? getProject(id) : null
 
   const [form, setForm] = useState({
-    title: project ? project.title : '',
-    description: project ? project.description : '',
-    clientEmail: project ? getUser(project.client)?.email || '' : '',
-    budget: project ? project.budget : '',
-    deadline: project ? project.deadline : '',
+    title: '',
+    description: '',
+    clientEmail: '',
+    budget: '',
+    deadline: '',
   })
   const [errors, setErrors] = useState({})
+  const [serverError, setServerError] = useState('')
+  const [loading, setLoading] = useState(editing)
+  const [notAllowed, setNotAllowed] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  // when editing, fill the form with the project
+  useEffect(() => {
+    if (!editing) return
+    api.get('/projects/' + id)
+      .then((res) => {
+        const p = res.data
+        if (p.freelancer._id !== user._id) {
+          setNotAllowed(true)
+          return
+        }
+        setForm({
+          title: p.title,
+          description: p.description || '',
+          clientEmail: p.client.email,
+          budget: p.budget,
+          deadline: p.deadline ? p.deadline.slice(0, 10) : '',
+        })
+      })
+      .catch(() => setNotAllowed(true))
+      .finally(() => setLoading(false))
+  }, [id])
+
+  if (loading) return <Loader />
 
   // only freelancers make projects, and only the owner can edit one
-  if (user.role !== 'freelancer' || (editing && (!project || project.freelancer !== user._id))) {
+  if (user.role !== 'freelancer' || notAllowed) {
     return (
       <div className="page">
         <Card>
@@ -51,54 +78,43 @@ function ProjectForm() {
     setForm({ ...form, [e.target.name]: e.target.value })
   }
 
-  function findClient(email) {
-    return users.find((u) => u.role === 'client' && u.email.toLowerCase() === email.trim().toLowerCase())
-  }
-
   function validate() {
     const errs = {}
     if (!form.title.trim()) errs.title = 'Title is required'
-    if (!editing) {
-      if (!form.clientEmail.trim()) errs.clientEmail = 'Client email is required'
-      else if (!findClient(form.clientEmail)) errs.clientEmail = 'No client account found with this email'
-    }
+    if (!editing && !form.clientEmail.trim()) errs.clientEmail = 'Client email is required'
     if (!form.budget || Number(form.budget) <= 0) errs.budget = 'Budget must be more than 0'
     if (!form.deadline) errs.deadline = 'Deadline is required'
     return errs
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
 
     const errs = validate()
     setErrors(errs)
+    setServerError('')
     if (Object.keys(errs).length > 0) return
 
-    // week 3: these become PUT /api/projects/:id and POST /api/projects
-    if (editing) {
-      project.title = form.title.trim()
-      project.description = form.description.trim()
-      project.budget = Number(form.budget)
-      project.deadline = form.deadline
-      navigate(`/projects/${project._id}`)
-      return
-    }
-
-    const client = findClient(form.clientEmail)
-    const newProject = {
-      _id: newId('p'),
+    const data = {
       title: form.title.trim(),
       description: form.description.trim(),
-      freelancer: user._id,
-      client: client._id,
       budget: Number(form.budget),
       deadline: form.deadline,
-      status: 'proposal', // becomes active when the client accepts the proposal
-      createdAt: new Date().toISOString(),
     }
-    projects.push(newProject)
-    addNotification(client._id, `${user.name} added you to the project ${newProject.title}`, `/projects/${newProject._id}`)
-    navigate(`/projects/${newProject._id}`)
+
+    setSaving(true)
+    try {
+      if (editing) {
+        await api.put('/projects/' + id, data)
+        navigate('/projects/' + id)
+      } else {
+        const res = await api.post('/projects', { ...data, clientEmail: form.clientEmail.trim().toLowerCase() })
+        navigate('/projects/' + res.data._id)
+      }
+    } catch (err) {
+      setServerError(err.response?.data?.message || 'could not save project')
+      setSaving(false)
+    }
   }
 
   return (
@@ -149,11 +165,15 @@ function ProjectForm() {
             />
           </div>
 
+          {serverError && <p className="form-error">{serverError}</p>}
+
           <div className="form-actions">
             <Button variant="secondary" onClick={() => navigate(-1)}>
               Cancel
             </Button>
-            <Button type="submit">{editing ? 'Save changes' : 'Create project'}</Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? 'Saving...' : editing ? 'Save changes' : 'Create project'}
+            </Button>
           </div>
         </form>
       </Card>

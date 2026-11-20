@@ -2,28 +2,29 @@ import { useState } from 'react'
 import Modal from '../../components/Modal'
 import Input from '../../components/Input'
 import Button from '../../components/Button'
-import { tasks, milestones, newId } from '../../mockData'
+import api from '../../api'
 
 // add a new task (task = {}) or edit an existing one
-function TaskModal({ task, projectId, onClose, onSaved }) {
+function TaskModal({ task, projectId, milestones, onClose, onSaved }) {
   const editing = Boolean(task._id)
-  const projectMilestones = milestones.filter((m) => m.project === projectId)
+  const projectMilestones = milestones
 
   const [form, setForm] = useState({
     title: task.title || '',
     description: task.description || '',
     status: task.status || 'todo',
     priority: task.priority || 'medium',
-    dueDate: task.dueDate || '',
+    dueDate: task.dueDate ? task.dueDate.slice(0, 10) : '',
     milestone: task.milestone || '',
   })
   const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
 
   function handleChange(e) {
     setForm({ ...form, [e.target.name]: e.target.value })
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
 
     if (!form.title.trim()) {
@@ -33,21 +34,29 @@ function TaskModal({ task, projectId, onClose, onSaved }) {
 
     const data = { ...form, title: form.title.trim(), description: form.description.trim() }
 
-    // week 3: these become PUT /api/tasks/:id and POST /api/projects/:id/tasks
-    if (editing) {
-      Object.assign(task, data)
-    } else {
-      tasks.push({ _id: newId('t'), project: projectId, ...data })
+    setSaving(true)
+    try {
+      if (editing) {
+        await api.put('/tasks/' + task._id, data)
+      } else {
+        await api.post('/projects/' + projectId + '/tasks', data)
+      }
+      onSaved()
+    } catch (err) {
+      setError(err.response?.data?.message || 'could not save task')
+      setSaving(false)
     }
-    onSaved()
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!window.confirm('Delete this task?')) return
 
-    // week 3: this becomes DELETE /api/tasks/:id
-    tasks.splice(tasks.indexOf(task), 1)
-    onSaved()
+    try {
+      await api.delete('/tasks/' + task._id)
+      onSaved()
+    } catch (err) {
+      alert(err.response?.data?.message || 'could not delete task')
+    }
   }
 
   return (
@@ -97,7 +106,7 @@ function TaskModal({ task, projectId, onClose, onSaved }) {
             <Button variant="secondary" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit">{editing ? 'Save' : 'Add task'}</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Saving...' : editing ? 'Save' : 'Add task'}</Button>
           </div>
         </div>
       </form>

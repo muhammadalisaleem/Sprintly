@@ -1,14 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FiPlus, FiFolder, FiCalendar, FiDollarSign, FiUser, FiEdit2 } from 'react-icons/fi'
 import Button from '../../components/Button'
 import Card from '../../components/Card'
 import StatusBadge from '../../components/StatusBadge'
 import EmptyState from '../../components/EmptyState'
+import Loader from '../../components/Loader'
 import { useAuth } from '../../context/AuthContext'
-import { getUser, getUserProjects } from '../../mockData'
+import api from '../../api'
 import { formatDate, formatMoney, isPast } from '../../utils/format'
-import { getProgress } from './projectUtils'
 import './projects.css'
 
 const filters = ['all', 'proposal', 'active', 'completed']
@@ -16,10 +16,20 @@ const filters = ['all', 'proposal', 'active', 'completed']
 function ProjectList() {
   const { user } = useAuth()
   const [filter, setFilter] = useState('all')
+  const [myProjects, setMyProjects] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const isFreelancer = user.role === 'freelancer'
 
-  // newest first
-  const myProjects = getUserProjects(user._id).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  // server sends them newest first
+  useEffect(() => {
+    api.get('/projects')
+      .then((res) => setMyProjects(res.data))
+      .catch(() => setError('could not load projects'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return <Loader />
   const shown = filter === 'all' ? myProjects : myProjects.filter((p) => p.status === filter)
 
   function count(f) {
@@ -48,6 +58,8 @@ function ProjectList() {
         ))}
       </div>
 
+      {error && <p className="form-error">{error}</p>}
+
       {shown.length === 0 ? (
         <Card>
           <EmptyState
@@ -60,8 +72,8 @@ function ProjectList() {
         <div className="project-grid">
           {shown.map((project) => {
             // freelancers see the client, clients see the freelancer
-            const other = getUser(isFreelancer ? project.client : project.freelancer)
-            const progress = getProgress(project._id)
+            const other = isFreelancer ? project.client : project.freelancer
+            const progress = project.progress || 0
             const late = project.status !== 'completed' && isPast(project.deadline)
 
             return (

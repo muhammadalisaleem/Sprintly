@@ -1,13 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { FiPlus, FiFlag, FiCheck, FiRotateCcw, FiEdit2, FiArrowLeft } from 'react-icons/fi'
 import Button from '../../components/Button'
 import Card from '../../components/Card'
 import EmptyState from '../../components/EmptyState'
 import { useAuth } from '../../context/AuthContext'
-import { milestones, getProject } from '../../mockData'
+import Loader from '../../components/Loader'
+import api from '../../api'
 import { formatDate, formatMoney, isPast } from '../../utils/format'
-import { addNotification } from '../../utils/notifications'
 import MilestoneModal from './MilestoneModal'
 import './milestones.css'
 
@@ -16,14 +16,28 @@ function MilestoneList({ projectId }) {
   const params = useParams()
   const id = projectId || params.id
   const { user } = useAuth()
-  const project = getProject(id)
-
-  // mockData is changed directly, this just tells React to draw again
-  const [, setVersion] = useState(0)
-  const refresh = () => setVersion((v) => v + 1)
+  const [project, setProject] = useState(null)
+  const [milestones, setMilestones] = useState([])
+  const [loading, setLoading] = useState(true)
 
   // null = closed, {} = new milestone, a milestone = edit it
   const [modalMilestone, setModalMilestone] = useState(null)
+
+  function loadMilestones() {
+    return api.get('/projects/' + id + '/milestones').then((res) => setMilestones(res.data))
+  }
+
+  useEffect(() => {
+    api.get('/projects/' + id)
+      .then((res) => {
+        setProject(res.data)
+        return loadMilestones()
+      })
+      .catch((err) => console.log(err))
+      .finally(() => setLoading(false))
+  }, [id])
+
+  if (loading) return <Loader />
 
   if (!project) {
     return (
@@ -34,29 +48,24 @@ function MilestoneList({ projectId }) {
   }
 
   // only the project's freelancer can change milestones
-  const canEdit = user._id === project.freelancer
+  const canEdit = user._id === project.freelancer._id
 
-  // soonest due first
+  // server sends them soonest due first
   const list = milestones
-    .filter((m) => m.project === id)
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
 
   const doneCount = list.filter((m) => m.completed).length
   const percent = list.length ? Math.round((doneCount / list.length) * 100) : 0
   const totalAmount = list.reduce((sum, m) => sum + m.amount, 0)
   const doneAmount = list.filter((m) => m.completed).reduce((sum, m) => sum + m.amount, 0)
 
-  // week 3: this becomes PATCH /api/milestones/:id/complete
-  function toggleComplete(milestone) {
-    milestone.completed = !milestone.completed
-    if (milestone.completed) {
-      addNotification(
-        project.client,
-        `Milestone "${milestone.title}" was marked complete`,
-        `/projects/${project._id}?tab=milestones`
-      )
+  // server sends the client a notification when its completed
+  async function toggleComplete(milestone) {
+    try {
+      const res = await api.patch('/milestones/' + milestone._id + '/complete')
+      setMilestones(milestones.map((m) => (m._id === milestone._id ? res.data : m)))
+    } catch (err) {
+      alert(err.response?.data?.message || 'could not update milestone')
     }
-    refresh()
   }
 
   return (
@@ -156,7 +165,7 @@ function MilestoneList({ projectId }) {
           onClose={() => setModalMilestone(null)}
           onSaved={() => {
             setModalMilestone(null)
-            refresh()
+            loadMilestones()
           }}
         />
       )}
