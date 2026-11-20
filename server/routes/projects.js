@@ -2,6 +2,7 @@ const express = require('express')
 const Project = require('../models/Project')
 const User = require('../models/User')
 const auth = require('../middleware/auth')
+const notify = require('../utils/notify')
 
 const router = express.Router()
 
@@ -74,7 +75,7 @@ router.post('/', auth, async (req, res) => {
     })
     await project.save()
 
-    // todo: notify(client._id, ...) when owais adds notify.js
+    await notify(client._id, req.user.name + ' added you to the project ' + project.title, '/projects/' + project._id)
 
     res.json(project)
   } catch (err) {
@@ -126,7 +127,7 @@ router.put('/:id/complete', auth, async (req, res) => {
     project.completedAt = new Date()
     await project.save()
 
-    // todo: notify the client to leave a review
+    await notify(project.client, req.user.name + ' marked ' + project.title + ' as complete. Leave a review!', '/projects/' + project._id + '/review')
 
     res.json(project)
   } catch (err) {
