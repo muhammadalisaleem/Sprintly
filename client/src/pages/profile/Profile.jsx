@@ -19,13 +19,15 @@ function Profile() {
   })
   const [errors, setErrors] = useState({})
   const [saved, setSaved] = useState(false)
+  const [serverError, setServerError] = useState('')
+  const [saving, setSaving] = useState(false)
 
   function handleChange(e) {
     setForm({ ...form, [e.target.name]: e.target.value })
     setSaved(false)
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
 
     const errs = {}
@@ -36,17 +38,24 @@ function Profile() {
     setErrors(errs)
     if (Object.keys(errs).length > 0) return
 
-    updateProfile({
-      name: form.name.trim(),
-      bio: form.bio.trim(),
-      // "React, Node.js" -> ['React', 'Node.js']
-      skills: form.skills
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean),
-      hourlyRate: Number(form.hourlyRate) || 0,
-    })
-    setSaved(true)
+    setSaving(true)
+    setServerError('')
+    try {
+      await updateProfile({
+        name: form.name.trim(),
+        bio: form.bio.trim(),
+        // "React, Node.js" -> ['React', 'Node.js']
+        skills: form.skills
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
+        hourlyRate: Number(form.hourlyRate) || 0,
+      })
+      setSaved(true)
+    } catch (err) {
+      setServerError(err.response?.data?.message || 'could not save profile')
+    }
+    setSaving(false)
   }
 
   // first letters of the name, e.g. "Sara Khan" -> "SK"
@@ -112,13 +121,15 @@ function Profile() {
             </div>
           )}
 
+          {serverError && <p className="form-error">{serverError}</p>}
+
           <div className="form-actions">
             {saved && (
               <span className="saved-msg">
                 <FiCheck /> Saved
               </span>
             )}
-            <Button type="submit">Save changes</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save changes'}</Button>
           </div>
         </form>
       </Card>

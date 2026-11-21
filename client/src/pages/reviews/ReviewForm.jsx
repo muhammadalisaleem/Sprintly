@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { FaStar, FaRegStar } from 'react-icons/fa'
 import { FiArrowLeft, FiStar } from 'react-icons/fi'
@@ -7,8 +7,8 @@ import Card from '../../components/Card'
 import Input from '../../components/Input'
 import EmptyState from '../../components/EmptyState'
 import { useAuth } from '../../context/AuthContext'
-import { reviews, getProject, getUser, newId } from '../../mockData'
-import { addNotification } from '../../utils/notifications'
+import Loader from '../../components/Loader'
+import api from '../../api'
 import './reviews.css'
 
 const ratingWords = ['', 'Poor', 'Okay', 'Good', 'Very good', 'Excellent']
@@ -17,15 +17,35 @@ function ReviewForm() {
   const { id } = useParams()
   const { user } = useAuth()
   const navigate = useNavigate()
-  const project = getProject(id)
+  const [project, setProject] = useState(null)
+  const [alreadyReviewed, setAlreadyReviewed] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
 
   const [rating, setRating] = useState(0)
   const [hover, setHover] = useState(0)
   const [comment, setComment] = useState('')
   const [error, setError] = useState('')
 
-  const isMember = project && (project.freelancer === user._id || project.client === user._id)
-  const alreadyReviewed = reviews.some((r) => r.project === id && r.from === user._id)
+  useEffect(() => {
+    async function load() {
+      try {
+        const p = await api.get('/projects/' + id)
+        setProject(p.data)
+        const r = await api.get('/projects/' + id + '/reviews')
+        setAlreadyReviewed(r.data.some((rev) => rev.from === user._id))
+      } catch (err) {
+        console.log(err)
+      }
+      setLoading(false)
+    }
+    load()
+  }, [id])
+
+  if (loading) return <Loader />
+
+  // server only sends the project if im in it
+  const isMember = Boolean(project)
 
   // you can only review a completed project you were part of, once
   let problem = ''
@@ -52,9 +72,9 @@ function ReviewForm() {
   }
 
   // freelancer reviews the client and the client reviews the freelancer
-  const other = getUser(user._id === project.freelancer ? project.client : project.freelancer)
+  const other = user._id === project.freelancer._id ? project.client : project.freelancer
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
 
     if (rating === 0) {
@@ -62,18 +82,14 @@ function ReviewForm() {
       return
     }
 
-    // week 3: this becomes POST /api/projects/:id/reviews
-    reviews.push({
-      _id: newId('r'),
-      project: id,
-      from: user._id,
-      to: other._id,
-      rating,
-      comment: comment.trim(),
-      createdAt: new Date().toISOString(),
-    })
-    addNotification(other._id, `${user.name} left you a ${rating} star review`, `/users/${other._id}`)
-    navigate(`/users/${other._id}`)
+    setSaving(true)
+    try {
+      await api.post('/projects/' + id + '/reviews', { rating, comment: comment.trim() })
+      navigate(`/users/${other._id}`)
+    } catch (err) {
+      setError(err.response?.data?.message || 'could not send review')
+      setSaving(false)
+    }
   }
 
   // while hovering show the hovered stars, otherwise the picked ones
@@ -123,7 +139,7 @@ function ReviewForm() {
             <Button variant="secondary" onClick={() => navigate(-1)}>
               Cancel
             </Button>
-            <Button type="submit">Submit review</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Sending...' : 'Submit review'}</Button>
           </div>
         </form>
       </Card>

@@ -9,7 +9,6 @@ import Stars from '../../components/Stars'
 import Loader from '../../components/Loader'
 import { useAuth } from '../../context/AuthContext'
 import api from '../../api'
-import { reviews } from '../../mockData'
 import { formatDate, formatHours, formatMoney, isPast } from '../../utils/format'
 import KanbanBoard from '../tasks/KanbanBoard'
 import MilestoneList from '../milestones/MilestoneList'
@@ -239,7 +238,14 @@ function Overview({ project, freelancer, client, user, proposals, onChange }) {
 // finish the project, then both sides can leave a review
 function Completion({ project, user, client, onChange }) {
   const isFreelancer = user._id === project.freelancer._id
-  const myReview = reviews.find((r) => r.project === project._id && r.from === user._id)
+  const [myReview, setMyReview] = useState(null)
+
+  useEffect(() => {
+    if (project.status !== 'completed') return
+    api.get('/projects/' + project._id + '/reviews')
+      .then((res) => setMyReview(res.data.find((r) => r.from === user._id)))
+      .catch(() => {})
+  }, [project._id, project.status])
 
   async function completeProject() {
     let openMilestones = 0

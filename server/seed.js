@@ -9,6 +9,7 @@ const Project = require('./models/Project')
 const Proposal = require('./models/Proposal')
 const Milestone = require('./models/Milestone')
 const Task = require('./models/Task')
+const Review = require('./models/Review')
 
 const users = [
   { name: 'Sara Khan', email: 'sara@sprintly.dev', role: 'freelancer', bio: 'Full-stack developer who builds fast, clean web apps.', skills: ['React', 'Node.js', 'MongoDB'], hourlyRate: 40 },
@@ -78,6 +79,12 @@ const tasks = {
   ]
 }
 
+// reviews on the completed project, from and to are emails
+const reviews = [
+  { project: 'Brand identity design', from: 'usman@spiceroute.pk', to: 'bilal@sprintly.dev', rating: 5, comment: 'Creative, fast and easy to work with.' },
+  { project: 'Brand identity design', from: 'bilal@sprintly.dev', to: 'usman@spiceroute.pk', rating: 4, comment: 'Clear feedback and paid on time.' }
+]
+
 async function seed() {
   await mongoose.connect(process.env.MONGO_URI)
 
@@ -130,6 +137,23 @@ async function seed() {
       await Task.create({ ...t, milestone: made[t.milestone], project: project._id, order: order++ })
     }
     console.log('added milestones and tasks: ' + p.title)
+  }
+
+  for (let r of reviews) {
+    const project = await Project.findOne({ title: r.project })
+    const from = await User.findOne({ email: r.from })
+    const to = await User.findOne({ email: r.to })
+
+    const exists = await Review.findOne({ project: project._id, from: from._id })
+    if (exists) {
+      console.log('already there: review from ' + r.from)
+      continue
+    }
+    await Review.create({ project: project._id, from: from._id, to: to._id, rating: r.rating, comment: r.comment })
+    // just one review each so the average is the rating
+    to.ratingAvg = r.rating
+    await to.save()
+    console.log('added: review from ' + r.from)
   }
 
   mongoose.disconnect()

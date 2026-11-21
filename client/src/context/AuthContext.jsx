@@ -50,12 +50,11 @@ export function AuthProvider({ children }) {
     saveUser(res.data.token, res.data.user)
   }
 
-  // only changes it in the browser for now
-  // todo: send it to the server (PUT /api/users/me)
-  function updateProfile(data) {
-    const newUser = { ...user, ...data }
-    localStorage.setItem('user', JSON.stringify(newUser))
-    setUser(newUser)
+  // save on the server, then keep the new user in the browser too
+  async function updateProfile(data) {
+    const res = await api.put('/users/me', data)
+    localStorage.setItem('user', JSON.stringify(res.data))
+    setUser(res.data)
   }
 
   function logout() {

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { FiUser, FiEdit2 } from 'react-icons/fi'
 import Button from '../../components/Button'
@@ -5,14 +6,32 @@ import Card from '../../components/Card'
 import EmptyState from '../../components/EmptyState'
 import Stars from '../../components/Stars'
 import { useAuth } from '../../context/AuthContext'
-import { reviews, projects, getUser, getProject } from '../../mockData'
+import Loader from '../../components/Loader'
+import api from '../../api'
 import { formatDate, formatMoney } from '../../utils/format'
 import './profile.css'
 
 function PublicProfile() {
   const { id } = useParams()
   const { user } = useAuth()
-  const person = getUser(id)
+  const [person, setPerson] = useState(null)
+  const [personReviews, setPersonReviews] = useState([])
+  const [completedProjects, setCompletedProjects] = useState(0)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    api.get('/users/' + id)
+      .then((res) => {
+        setPerson(res.data.user)
+        setPersonReviews(res.data.reviews) // newest first from server
+        setCompletedProjects(res.data.completedProjects)
+      })
+      .catch(() => setPerson(null))
+      .finally(() => setLoading(false))
+  }, [id])
+
+  if (loading) return <Loader />
 
   if (!person) {
     return (
@@ -27,17 +46,9 @@ function PublicProfile() {
   const isFreelancer = person.role === 'freelancer'
   const isMe = user._id === person._id
 
-  // reviews other people left for this person, newest first
-  const personReviews = reviews
-    .filter((r) => r.to === person._id)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   const average = personReviews.length
     ? personReviews.reduce((sum, r) => sum + r.rating, 0) / personReviews.length
     : 0
-
-  const completedProjects = projects.filter(
-    (p) => p.status === 'completed' && (p.freelancer === person._id || p.client === person._id)
-  ).length
 
   const initials = person.name
     .split(' ')
@@ -125,12 +136,12 @@ function PublicProfile() {
             {personReviews.map((r) => (
               <div key={r._id} className="review">
                 <div className="review-top">
-                  <strong>{getUser(r.from)?.name}</strong>
+                  <strong>{r.from?.name}</strong>
                   <Stars rating={r.rating} size={14} />
                 </div>
                 <p>{r.comment}</p>
                 <p className="muted">
-                  {getProject(r.project)?.title} · {formatDate(r.createdAt)}
+                  {r.project?.title} · {formatDate(r.createdAt)}
                 </p>
               </div>
             ))}
