@@ -5,6 +5,10 @@ export function formatMoney(amount) {
 // 'yyyy-mm-dd' is read as local time, not UTC, so the day never shifts
 function toDate(date) {
   if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) return new Date(date + 'T00:00:00')
+  // server sends calendar days as midnight UTC, keep the same day here too
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}T00:00:00(\.000)?Z$/.test(date)) {
+    return new Date(date.slice(0, 10) + 'T00:00:00')
+  }
   return new Date(date)
 }
 

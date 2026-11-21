@@ -1,78 +1,31 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts'
 import { FiDollarSign, FiAlertCircle, FiBriefcase, FiClock } from 'react-icons/fi'
 import Card from '../../components/Card'
 import EmptyState from '../../components/EmptyState'
 import StatCard from './StatCard'
-import { milestones, timeEntries, getUserProjects } from '../../mockData'
-import { formatDate, formatHours, formatMoney, isPast, toInputDate } from '../../utils/format'
-import { getUserInvoices, invoiceStatus } from '../invoices/invoiceUtils'
+import Loader from '../../components/Loader'
+import api from '../../api'
+import { formatDate, formatHours, formatMoney } from '../../utils/format'
 import './dashboard.css'
 
-// paid totals for the last 6 months, oldest first
-function revenueByMonth(paidInvoices) {
-  const months = []
-  const now = new Date()
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    months.push({
-      key: `${d.getFullYear()}-${d.getMonth()}`,
-      month: d.toLocaleDateString('en-US', { month: 'short' }),
-      revenue: 0,
-    })
-  }
-  paidInvoices.forEach((inv) => {
-    const d = new Date(inv.paidAt)
-    const m = months.find((x) => x.key === `${d.getFullYear()}-${d.getMonth()}`)
-    if (m) m.revenue += inv.total
-  })
-  return months
-}
-
-function mondayThisWeek() {
-  const d = new Date()
-  d.setDate(d.getDate() - ((d.getDay() + 6) % 7))
-  return toInputDate(d)
-}
-
 function FreelancerDashboard({ user }) {
-  const myProjects = getUserProjects(user._id)
-  const activeProjects = myProjects.filter((p) => p.status === 'active')
-  const myInvoices = getUserInvoices(user).map((inv) => ({ ...inv, status: invoiceStatus(inv) }))
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
 
-  const paid = myInvoices.filter((inv) => inv.status === 'paid')
-  const totalEarned = paid.reduce((sum, inv) => sum + inv.total, 0)
-  const unpaidTotal = myInvoices.filter((inv) => inv.status !== 'paid').reduce((sum, inv) => sum + inv.total, 0)
+  // all the numbers come from the server
+  useEffect(() => {
+    api.get('/dashboard/freelancer')
+      .then((res) => setData(res.data))
+      .catch((err) => setError(err.response?.data?.message || 'could not load dashboard'))
+  }, [])
 
-  const monday = mondayThisWeek()
-  const hoursThisWeek = timeEntries
-    .filter((e) => e.user === user._id && e.date >= monday)
-    .reduce((sum, e) => sum + e.hours, 0)
+  if (error) return <div className="page"><p className="form-error">{error}</p></div>
+  if (!data) return <Loader />
 
-  // open milestones and project deadlines, soonest first
-  const activeIds = activeProjects.map((p) => p._id)
-  const deadlines = [
-    ...milestones
-      .filter((m) => activeIds.includes(m.project) && !m.completed)
-      .map((m) => ({
-        id: m._id,
-        title: m.title,
-        project: activeProjects.find((p) => p._id === m.project),
-        date: m.dueDate,
-        link: `/projects/${m.project}/milestones`,
-      })),
-    ...activeProjects.map((p) => ({
-      id: p._id,
-      title: 'Project deadline',
-      project: p,
-      date: p.deadline,
-      link: `/projects/${p._id}`,
-    })),
-  ]
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(0, 5)
-
-  const chartData = revenueByMonth(paid)
+  const deadlines = data.upcomingDeadlines
+  const chartData = data.revenueByMonth
 
   return (
     <div className="page">
@@ -84,10 +37,10 @@ function FreelancerDashboard({ user }) {
       </div>
 
       <div className="stats">
-        <StatCard icon={<FiDollarSign />} label="Total earned" value={formatMoney(totalEarned)} colour="green" />
-        <StatCard icon={<FiAlertCircle />} label="Unpaid" value={formatMoney(unpaidTotal)} colour="yellow" />
-        <StatCard icon={<FiBriefcase />} label="Active projects" value={activeProjects.length} colour="blue" />
-        <StatCard icon={<FiClock />} label="Hours this week" value={formatHours(hoursThisWeek)} colour="purple" />
+        <StatCard icon={<FiDollarSign />} label="Total earned" value={formatMoney(data.totalEarned)} colour="green" />
+        <StatCard icon={<FiAlertCircle />} label="Unpaid" value={formatMoney(data.unpaidTotal)} colour="yellow" />
+        <StatCard icon={<FiBriefcase />} label="Active projects" value={data.activeProjects} colour="blue" />
+        <StatCard icon={<FiClock />} label="Hours this week" value={formatHours(data.hoursThisWeek)} colour="purple" />
       </div>
 
       <div className="dash-grid">
@@ -110,14 +63,16 @@ function FreelancerDashboard({ user }) {
             <EmptyState title="Nothing due" message="No open milestones on active projects." />
           ) : (
             <ul className="dash-list">
-              {deadlines.map((d) => (
-                <li key={d.id}>
+              {deadlines.map((d, i) => (
+                <li key={i}>
                   <div>
-                    <Link to={d.link}><strong>{d.title}</strong></Link>
+                    <Link to={d.type === 'milestone' ? `/projects/${d.project._id}?tab=milestones` : `/projects/${d.project._id}`}>
+                      <strong>{d.title}</strong>
+                    </Link>
                     <div className="muted">{d.project?.title}</div>
                   </div>
-                  <span className={isPast(d.date) ? 'overdue' : 'muted'}>
-                    {isPast(d.date) ? 'Overdue · ' : ''}{formatDate(d.date)}
+                  <span className={d.overdue ? 'overdue' : 'muted'}>
+                    {d.overdue ? 'Overdue · ' : ''}{formatDate(d.date)}
                   </span>
                 </li>
               ))}

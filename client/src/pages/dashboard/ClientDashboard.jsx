@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FiBriefcase, FiFileText, FiAlertCircle } from 'react-icons/fi'
 import Card from '../../components/Card'
@@ -5,27 +6,29 @@ import Button from '../../components/Button'
 import StatusBadge from '../../components/StatusBadge'
 import EmptyState from '../../components/EmptyState'
 import StatCard from './StatCard'
-import { proposals, tasks, getUserProjects, getUser } from '../../mockData'
+import Loader from '../../components/Loader'
+import api from '../../api'
 import { formatDate, formatMoney } from '../../utils/format'
-import { getUserInvoices, invoiceStatus } from '../invoices/invoiceUtils'
 import './dashboard.css'
 
-function progress(projectId) {
-  const projectTasks = tasks.filter((t) => t.project === projectId)
-  if (projectTasks.length === 0) return 0
-  return Math.round((projectTasks.filter((t) => t.status === 'done').length / projectTasks.length) * 100)
-}
-
 function ClientDashboard({ user }) {
-  const myProjects = getUserProjects(user._id)
-  const myProjectIds = myProjects.map((p) => p._id)
-  const pendingProposals = proposals.filter((pr) => myProjectIds.includes(pr.project) && pr.status === 'pending')
-  const unpaidInvoices = getUserInvoices(user)
-    .map((inv) => ({ ...inv, status: invoiceStatus(inv) }))
-    .filter((inv) => inv.status !== 'paid')
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
-  const unpaidTotal = unpaidInvoices.reduce((sum, inv) => sum + inv.total, 0)
-  const projectTitle = (id) => myProjects.find((p) => p._id === id)?.title
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    api.get('/dashboard/client')
+      .then((res) => setData(res.data))
+      .catch((err) => setError(err.response?.data?.message || 'could not load dashboard'))
+  }, [])
+
+  if (error) return <div className="page"><p className="form-error">{error}</p></div>
+  if (!data) return <Loader />
+
+  // server already worked out progress, pending proposals and unpaid invoices
+  const myProjects = data.projects
+  const pendingProposals = data.pendingProposals
+  const unpaidInvoices = data.unpaidInvoices
+  const unpaidTotal = data.unpaidTotal
 
   return (
     <div className="page">
@@ -40,7 +43,7 @@ function ClientDashboard({ user }) {
         <StatCard
           icon={<FiBriefcase />}
           label="Active projects"
-          value={myProjects.filter((p) => p.status === 'active').length}
+          value={data.activeProjects}
           colour="blue"
         />
         <StatCard icon={<FiFileText />} label="Pending proposals" value={pendingProposals.length} colour="purple" />
@@ -53,7 +56,7 @@ function ClientDashboard({ user }) {
         ) : (
           <ul className="dash-list">
             {myProjects.map((p) => {
-              const pct = progress(p._id)
+              const pct = p.progress
               return (
                 <li key={p._id}>
                   <div className="project-progress">
@@ -62,7 +65,7 @@ function ClientDashboard({ user }) {
                       <StatusBadge status={p.status} />
                     </div>
                     <div className="muted">
-                      {getUser(p.freelancer)?.name} · due {formatDate(p.deadline)} · {pct}% done
+                      {p.freelancer?.name} · due {formatDate(p.deadline)} · {pct}% done
                     </div>
                     <div className="progress"><div className="progress-bar" style={{ width: `${pct}%` }} /></div>
                   </div>
@@ -82,7 +85,7 @@ function ClientDashboard({ user }) {
               {pendingProposals.map((pr) => (
                 <li key={pr._id}>
                   <div>
-                    <strong>{projectTitle(pr.project)}</strong>
+                    <strong>{pr.project?.title}</strong>
                     <div className="muted">{formatMoney(pr.amount)} · {pr.timeline}</div>
                   </div>
                   <Link to={`/proposals/${pr._id}`}><Button size="sm">Review</Button></Link>
@@ -101,7 +104,7 @@ function ClientDashboard({ user }) {
                 <li key={inv._id}>
                   <div>
                     <Link to={`/invoices/${inv._id}`}><strong>{inv.number}</strong></Link>
-                    <div className="muted">{projectTitle(inv.project)} · due {formatDate(inv.dueDate)}</div>
+                    <div className="muted">{inv.project?.title} · due {formatDate(inv.dueDate)}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div><strong>{formatMoney(inv.total)}</strong></div>

@@ -3,13 +3,13 @@ import { FiBell, FiCheck } from 'react-icons/fi'
 import Button from '../../components/Button'
 import Card from '../../components/Card'
 import EmptyState from '../../components/EmptyState'
-import { getCurrentUser } from '../../mockData'
+import { useAuth } from '../../context/AuthContext'
 import { useNotifications, markRead, markAllRead } from '../../utils/notifications'
 import { formatDate, formatTime } from '../../utils/format'
 import './notifications.css'
 
 function NotificationsPage() {
-  const user = getCurrentUser()
+  const { user } = useAuth()
   const navigate = useNavigate()
   const { notifications, unreadCount } = useNotifications(user._id)
 
@@ -25,7 +25,7 @@ function NotificationsPage() {
           <h2>Notifications</h2>
           <p className="muted">{unreadCount} unread</p>
         </div>
-        <Button variant="secondary" onClick={() => markAllRead(user._id)} disabled={unreadCount === 0}>
+        <Button variant="secondary" onClick={() => markAllRead()} disabled={unreadCount === 0}>
           <FiCheck /> Mark all read
         </Button>
       </div>

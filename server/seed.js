@@ -10,6 +10,9 @@ const Proposal = require('./models/Proposal')
 const Milestone = require('./models/Milestone')
 const Task = require('./models/Task')
 const Review = require('./models/Review')
+const TimeEntry = require('./models/TimeEntry')
+const Invoice = require('./models/Invoice')
+const Message = require('./models/Message')
 
 const users = [
   { name: 'Sara Khan', email: 'sara@sprintly.dev', role: 'freelancer', bio: 'Full-stack developer who builds fast, clean web apps.', skills: ['React', 'Node.js', 'MongoDB'], hourlyRate: 40 },
@@ -85,6 +88,37 @@ const reviews = [
   { project: 'Brand identity design', from: 'bilal@sprintly.dev', to: 'usman@spiceroute.pk', rating: 4, comment: 'Clear feedback and paid on time.' }
 ]
 
+// logged time, by project title. user is the freelancer of the project
+const time = {
+  'E-commerce website': [
+    { date: '2026-11-10', hours: 5, note: 'Product gallery' },
+    { date: '2026-11-17', hours: 4, note: 'Product page layout' },
+    { date: '2026-11-19', hours: 3.5, note: 'Cart page' }
+  ],
+  'Mobile app landing page': [
+    { date: '2026-11-18', hours: 2, note: 'Responsive fixes' }
+  ]
+}
+
+// invoices for finished milestones. milestone titles get changed to lines below
+const invoices = [
+  { number: 'INV-001', project: 'Brand identity design', milestones: ['Logo concepts', 'Brand guide'], status: 'paid', dueDate: '2026-10-10', paidAt: '2026-10-02' },
+  { number: 'INV-002', project: 'E-commerce website', milestones: ['Design mockups'], status: 'paid', dueDate: '2026-10-25', paidAt: '2026-10-12' },
+  { number: 'INV-003', project: 'Mobile app landing page', milestones: ['Landing page design'], status: 'unpaid', dueDate: '2026-12-05' }
+]
+
+// chat, from is an email
+const chats = {
+  'E-commerce website': [
+    { from: 'hamza@acme.com', text: 'How is the product page coming along?' },
+    { from: 'sara@sprintly.dev', text: 'Almost done, I will share a preview tomorrow.' }
+  ],
+  'Mobile app landing page': [
+    { from: 'ayesha@fitapp.io', text: 'Can we add a pricing section?' },
+    { from: 'sara@sprintly.dev', text: 'Sure, I will add it to the final build.' }
+  ]
+}
+
 async function seed() {
   await mongoose.connect(process.env.MONGO_URI)
 
@@ -154,6 +188,61 @@ async function seed() {
     to.ratingAvg = r.rating
     await to.save()
     console.log('added: review from ' + r.from)
+  }
+
+  // time entries
+  for (let title in time) {
+    const project = await Project.findOne({ title })
+    if (await TimeEntry.findOne({ project: project._id })) {
+      console.log('already there: time on ' + title)
+      continue
+    }
+    for (let t of time[title]) {
+      await TimeEntry.create({ ...t, user: project.freelancer, project: project._id })
+    }
+    console.log('added: time on ' + title)
+  }
+
+  // invoices
+  for (let inv of invoices) {
+    if (await Invoice.findOne({ number: inv.number })) {
+      console.log('already there: ' + inv.number)
+      continue
+    }
+    const project = await Project.findOne({ title: inv.project })
+    const items = []
+    for (let mTitle of inv.milestones) {
+      const m = await Milestone.findOne({ project: project._id, title: mTitle })
+      items.push({ description: 'Milestone: ' + m.title, qty: 1, rate: m.amount, amount: m.amount, milestone: m._id })
+    }
+    let total = 0
+    for (let i of items) total += i.amount
+    await Invoice.create({
+      number: inv.number,
+      project: project._id,
+      freelancer: project.freelancer,
+      client: project.client,
+      items,
+      total,
+      status: inv.status,
+      dueDate: inv.dueDate,
+      paidAt: inv.paidAt
+    })
+    console.log('added: ' + inv.number)
+  }
+
+  // chat messages
+  for (let title in chats) {
+    const project = await Project.findOne({ title })
+    if (await Message.findOne({ project: project._id })) {
+      console.log('already there: chat on ' + title)
+      continue
+    }
+    for (let c of chats[title]) {
+      const from = await User.findOne({ email: c.from })
+      await Message.create({ project: project._id, sender: from._id, text: c.text })
+    }
+    console.log('added: chat on ' + title)
   }
 
   mongoose.disconnect()

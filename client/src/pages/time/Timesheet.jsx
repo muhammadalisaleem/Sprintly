@@ -1,9 +1,11 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FiClock } from 'react-icons/fi'
 import Card from '../../components/Card'
 import Button from '../../components/Button'
 import EmptyState from '../../components/EmptyState'
-import { timeEntries, getCurrentUser, getProject } from '../../mockData'
+import Loader from '../../components/Loader'
+import api from '../../api'
 import { formatDate, formatHours, toInputDate } from '../../utils/format'
 import './time.css'
 
@@ -22,13 +24,23 @@ function weekLabel(start) {
 }
 
 function Timesheet() {
-  const user = getCurrentUser()
-  const myEntries = timeEntries.filter((e) => e.user === user._id)
+  const [myEntries, setMyEntries] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  // server sends only my own entries
+  useEffect(() => {
+    api.get('/time')
+      .then((res) => setMyEntries(res.data))
+      .catch((err) => console.log(err))
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return <Loader />
 
   // { '2026-10-19': [entries], ... }
   const weeks = {}
   myEntries.forEach((e) => {
-    const key = weekStart(e.date)
+    const key = weekStart(e.date.slice(0, 10))
     if (!weeks[key]) weeks[key] = []
     weeks[key].push(e)
   })
@@ -79,7 +91,7 @@ function Timesheet() {
                       <tr key={e._id}>
                         <td>{formatDate(e.date)}</td>
                         <td>
-                          <Link to={`/projects/${e.project}`}>{getProject(e.project)?.title}</Link>
+                          <Link to={`/projects/${e.project?._id}`}>{e.project?.title}</Link>
                         </td>
                         <td>{e.note}</td>
                         <td>{formatHours(e.hours)}</td>

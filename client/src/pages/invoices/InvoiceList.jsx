@@ -1,28 +1,36 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { FiFileText, FiPlus } from 'react-icons/fi'
 import Button from '../../components/Button'
 import Card from '../../components/Card'
 import StatusBadge from '../../components/StatusBadge'
 import EmptyState from '../../components/EmptyState'
-import { getCurrentUser, getProject } from '../../mockData'
+import Loader from '../../components/Loader'
+import { useAuth } from '../../context/AuthContext'
+import api from '../../api'
 import { formatDate, formatMoney } from '../../utils/format'
-import { invoiceStatus, getUserInvoices, otherParty } from './invoiceUtils'
 import './invoices.css'
 
 const filters = ['all', 'unpaid', 'paid', 'overdue']
 
 // projectId is passed when this is shown as a tab inside ProjectDetail
 function InvoiceList({ projectId }) {
-  const user = getCurrentUser()
+  const { user } = useAuth()
   const navigate = useNavigate()
   const [filter, setFilter] = useState('all')
+  const [myInvoices, setMyInvoices] = useState([])
+  const [loading, setLoading] = useState(true)
   const isFreelancer = user.role === 'freelancer'
 
-  const myInvoices = getUserInvoices(user)
-    .filter((inv) => !projectId || inv.project === projectId)
-    .map((inv) => ({ ...inv, status: invoiceStatus(inv) }))
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  // server sends only my invoices (newest first) and marks overdue ones
+  useEffect(() => {
+    api.get(projectId ? '/invoices?project=' + projectId : '/invoices')
+      .then((res) => setMyInvoices(res.data))
+      .catch((err) => console.log(err))
+      .finally(() => setLoading(false))
+  }, [projectId])
+
+  if (loading) return <Loader />
 
   const shown = filter === 'all' ? myInvoices : myInvoices.filter((inv) => inv.status === filter)
   const count = (f) => (f === 'all' ? myInvoices.length : myInvoices.filter((inv) => inv.status === f).length)
@@ -71,8 +79,8 @@ function InvoiceList({ projectId }) {
                 {shown.map((inv) => (
                   <tr key={inv._id} className="invoice-row" onClick={() => navigate(`/invoices/${inv._id}`)}>
                     <td><Link to={`/invoices/${inv._id}`}>{inv.number}</Link></td>
-                    {!projectId && <td>{getProject(inv.project)?.title}</td>}
-                    <td>{otherParty(inv, user)?.name}</td>
+                    {!projectId && <td>{inv.project?.title}</td>}
+                    <td>{isFreelancer ? inv.client?.name : inv.freelancer?.name}</td>
                     <td>{formatDate(inv.dueDate)}</td>
                     <td><strong>{formatMoney(inv.total)}</strong></td>
                     <td><StatusBadge status={inv.status} /></td>

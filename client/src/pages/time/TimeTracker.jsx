@@ -5,24 +5,29 @@ import Button from '../../components/Button'
 import Card from '../../components/Card'
 import Input from '../../components/Input'
 import EmptyState from '../../components/EmptyState'
-import { timeEntries, tasks, getCurrentUser, getUserProjects, newId } from '../../mockData'
+import Loader from '../../components/Loader'
+import { useAuth } from '../../context/AuthContext'
+import api from '../../api'
 import { formatClock, formatDate, formatHours, toInputDate } from '../../utils/format'
 import './time.css'
 
-const TIMER_KEY = 'sprintly-timer'
+// the running timer is kept per user so two accounts on one browser dont share it
+function timerKey(userId) {
+  return 'sprintly-timer-' + userId
+}
 
-function loadTimer() {
+function loadTimer(userId) {
   try {
-    return JSON.parse(localStorage.getItem(TIMER_KEY))
+    return JSON.parse(localStorage.getItem(timerKey(userId)))
   } catch {
     return null
   }
 }
 
-function saveTimer(timer) {
+function saveTimer(userId, timer) {
   try {
-    if (timer) localStorage.setItem(TIMER_KEY, JSON.stringify(timer))
-    else localStorage.removeItem(TIMER_KEY)
+    if (timer) localStorage.setItem(timerKey(userId), JSON.stringify(timer))
+    else localStorage.removeItem(timerKey(userId))
   } catch {
     // storage blocked, the timer still works until the page is left
   }
@@ -34,22 +39,58 @@ function emptyForm() {
 
 // projectId is passed when this is shown as a tab inside ProjectDetail
 function TimeTracker({ projectId }) {
-  const user = getCurrentUser()
+  const { user } = useAuth()
   const [searchParams] = useSearchParams()
-  const myProjects = getUserProjects(user._id).filter((p) => p.status === 'active')
 
-  const [selectedProject, setSelectedProject] = useState(
-    projectId || searchParams.get('project') || myProjects[0]?._id || ''
-  )
-  const [entries, setEntries] = useState(timeEntries)
-  const [timer, setTimer] = useState(loadTimer)
+  const [myProjects, setMyProjects] = useState([])
+  const [loadingProjects, setLoadingProjects] = useState(!projectId)
+  const [selectedProject, setSelectedProject] = useState(projectId || searchParams.get('project') || '')
+
+  const [entries, setEntries] = useState([])
+  const [totalHours, setTotalHours] = useState(0)
+  const [projectTasks, setProjectTasks] = useState([])
+
+  const [timer, setTimer] = useState(() => loadTimer(user._id))
   const [elapsed, setElapsed] = useState(0)
   const [timerNote, setTimerNote] = useState(timer?.note || '')
   const [form, setForm] = useState(emptyForm)
   const [formError, setFormError] = useState('')
+  const [error, setError] = useState('')
 
   const currentProject = projectId || selectedProject
-  const projectTasks = tasks.filter((t) => t.project === currentProject)
+
+  // my active projects for the dropdown (only on the /time page)
+  useEffect(() => {
+    if (projectId) return
+    api.get('/projects')
+      .then((res) => {
+        const active = res.data.filter((p) => p.status === 'active' && p.freelancer._id === user._id)
+        setMyProjects(active)
+        if (!selectedProject && active.length > 0) setSelectedProject(active[0]._id)
+      })
+      .catch(() => setError('could not load projects'))
+      .finally(() => setLoadingProjects(false))
+  }, [])
+
+  function loadEntries() {
+    if (!currentProject) return
+    api.get('/projects/' + currentProject + '/time')
+      .then((res) => {
+        setEntries(res.data.entries)
+        setTotalHours(res.data.totalHours)
+      })
+      .catch(() => setError('could not load time entries'))
+  }
+
+  // entries + tasks of the picked project
+  useEffect(() => {
+    if (!currentProject) return
+    setError('')
+    loadEntries()
+    api.get('/projects/' + currentProject + '/tasks')
+      .then((res) => setProjectTasks(res.data))
+      .catch(() => setProjectTasks([]))
+  }, [currentProject])
 
   // tick the running clock every second
   useEffect(() => {
@@ -65,28 +106,32 @@ function TimeTracker({ projectId }) {
 
   function startTimer() {
     const t = { project: currentProject, startedAt: Date.now(), note: timerNote }
-    saveTimer(t)
+    saveTimer(user._id, t)
     setTimer(t)
   }
 
-  function stopTimer() {
+  async function stopTimer() {
     const hours = Math.max(0.01, Math.round((elapsed / 3600) * 100) / 100)
-    addEntry({
-      project: timer.project,
+    const ok = await addEntry(timer.project, {
       hours,
       date: toInputDate(),
       note: timerNote || 'Timer',
-      task: null,
     })
-    saveTimer(null)
+    if (!ok) return
+    saveTimer(user._id, null)
     setTimer(null)
     setTimerNote('')
   }
 
-  function addEntry(data) {
-    const entry = { _id: newId('te'), user: user._id, invoiced: false, ...data }
-    timeEntries.push(entry)
-    setEntries([...timeEntries])
+  async function addEntry(project, data) {
+    try {
+      await api.post('/projects/' + project + '/time', data)
+      loadEntries()
+      return true
+    } catch (err) {
+      setError(err.response?.data?.message || 'could not save time')
+      return false
+    }
   }
 
   function updateForm(e) {
@@ -94,34 +139,35 @@ function TimeTracker({ projectId }) {
     setFormError('')
   }
 
-  function submitManual(e) {
+  async function submitManual(e) {
     e.preventDefault()
     const hours = Number(form.hours)
     if (!hours || hours <= 0 || hours > 24) {
       setFormError('Enter hours between 0 and 24')
       return
     }
-    addEntry({
-      project: currentProject,
+    const ok = await addEntry(currentProject, {
       hours,
       date: form.date,
       note: form.note || 'Manual entry',
-      task: form.task || null,
+      task: form.task || undefined,
     })
-    setForm(emptyForm())
+    if (ok) setForm(emptyForm())
   }
 
-  function deleteEntry(id) {
-    const index = timeEntries.findIndex((e) => e._id === id)
-    if (index !== -1) timeEntries.splice(index, 1)
-    setEntries([...timeEntries])
+  async function deleteEntry(id) {
+    if (!window.confirm('Delete this entry?')) return
+    try {
+      await api.delete('/time/' + id)
+      loadEntries()
+    } catch (err) {
+      setError(err.response?.data?.message || 'could not delete entry')
+    }
   }
 
-  const projectEntries = entries
-    .filter((e) => e.project === currentProject && e.user === user._id)
-    .sort((a, b) => b.date.localeCompare(a.date))
-  const totalHours = projectEntries.reduce((sum, e) => sum + e.hours, 0)
   const timerOnOtherProject = timer && timer.project !== currentProject
+
+  if (loadingProjects) return <Loader />
 
   if (myProjects.length === 0 && !projectId) {
     return (
@@ -149,6 +195,8 @@ function TimeTracker({ projectId }) {
           </select>
         </div>
       )}
+
+      {error && <p className="form-error">{error}</p>}
 
       <div className="time-layout">
         <Card title="Timer">
@@ -209,7 +257,7 @@ function TimeTracker({ projectId }) {
         className="time-entries"
         actions={<span className="muted">Total: <strong>{formatHours(totalHours)}</strong></span>}
       >
-        {projectEntries.length === 0 ? (
+        {entries.length === 0 ? (
           <EmptyState icon={<FiClock />} title="No time logged yet" message="Start the timer or add an entry." />
         ) : (
           <div className="table-wrap">
@@ -224,20 +272,20 @@ function TimeTracker({ projectId }) {
                 </tr>
               </thead>
               <tbody>
-                {projectEntries.map((e) => (
+                {entries.map((e) => (
                   <tr key={e._id}>
                     <td>{formatDate(e.date)}</td>
                     <td>{e.note}</td>
-                    <td className="muted">{projectTasks.find((t) => t._id === e.task)?.title || '—'}</td>
+                    <td className="muted">{e.task?.title || '—'}</td>
                     <td>{formatHours(e.hours)}</td>
                     <td>
                       {e.invoiced ? (
                         <span className="badge badge-green">invoiced</span>
-                      ) : (
+                      ) : e.user?._id === user._id ? (
                         <Button variant="ghost" size="sm" onClick={() => deleteEntry(e._id)} aria-label="Delete entry">
                           <FiTrash2 />
                         </Button>
-                      )}
+                      ) : null}
                     </td>
                   </tr>
                 ))}

@@ -1,21 +1,20 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { FiPlus, FiTrash2, FiClock, FiFlag } from 'react-icons/fi'
 import Button from '../../components/Button'
 import Card from '../../components/Card'
 import Input from '../../components/Input'
 import EmptyState from '../../components/EmptyState'
-import {
-  invoices, timeEntries, milestones,
-  getCurrentUser, getUserProjects, getProject, newId,
-} from '../../mockData'
+import Loader from '../../components/Loader'
+import { useAuth } from '../../context/AuthContext'
+import api from '../../api'
 import { formatMoney, toInputDate } from '../../utils/format'
-import { addNotification } from '../../utils/notifications'
-import { nextInvoiceNumber } from './invoiceUtils'
 import './invoices.css'
 
+// keys for the rows in the table
+let nextKey = 1
 function emptyItem() {
-  return { key: newId('item'), description: '', qty: 1, rate: 0 }
+  return { key: nextKey++, description: '', qty: 1, rate: 0 }
 }
 
 function defaultDueDate() {
@@ -25,40 +24,66 @@ function defaultDueDate() {
 }
 
 function InvoiceForm() {
-  const user = getCurrentUser()
+  const { user } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const myProjects = getUserProjects(user._id).filter((p) => p.freelancer === user._id && p.status !== 'proposal')
 
-  const startProject = searchParams.get('project')
-  const [projectId, setProjectId] = useState(
-    myProjects.some((p) => p._id === startProject) ? startProject : myProjects[0]?._id || ''
-  )
+  const [myProjects, setMyProjects] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [projectId, setProjectId] = useState('')
+
+  // things on the picked project that can still be billed
+  const [openEntries, setOpenEntries] = useState([])
+  const [openMilestones, setOpenMilestones] = useState([])
+
   const [dueDate, setDueDate] = useState(defaultDueDate)
   const [items, setItems] = useState([emptyItem()])
   const [errors, setErrors] = useState({})
   const [info, setInfo] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  // my projects that the client already accepted
+  useEffect(() => {
+    api.get('/projects')
+      .then((res) => {
+        const list = res.data.filter((p) => p.freelancer._id === user._id && p.status !== 'proposal')
+        setMyProjects(list)
+        const start = searchParams.get('project')
+        setProjectId(list.some((p) => p._id === start) ? start : list[0]?._id || '')
+      })
+      .catch((err) => console.log(err))
+      .finally(() => setLoading(false))
+  }, [])
+
+  // load uninvoiced time and unbilled completed milestones of the project
+  useEffect(() => {
+    if (!projectId) return
+    async function load() {
+      try {
+        const time = await api.get('/projects/' + projectId + '/time')
+        setOpenEntries(time.data.entries.filter((e) => !e.invoiced && e.user?._id === user._id))
+
+        const ms = await api.get('/projects/' + projectId + '/milestones')
+        const inv = await api.get('/invoices?project=' + projectId)
+        const billed = []
+        inv.data.forEach((i) => i.items.forEach((item) => item.milestone && billed.push(item.milestone)))
+        setOpenMilestones(ms.data.filter((m) => m.completed && !billed.includes(m._id)))
+      } catch (err) {
+        console.log(err)
+      }
+    }
+    load()
+  }, [projectId])
+
+  if (loading) return <Loader />
 
   const total = items.reduce((sum, item) => sum + Number(item.qty || 0) * Number(item.rate || 0), 0)
 
-  // uninvoiced time on this project that is not already in the list
+  // not the ones already added to the list
   const addedEntries = items.map((i) => i.timeEntry).filter(Boolean)
-  const availableEntries = timeEntries.filter(
-    (e) => e.project === projectId && e.user === user._id && !e.invoiced && !addedEntries.includes(e._id)
-  )
-
-  // completed milestones not billed in an earlier invoice or already in the list
-  const billedTitles = invoices
-    .filter((inv) => inv.project === projectId)
-    .flatMap((inv) => inv.items.map((i) => i.description))
+  const availableEntries = openEntries.filter((e) => !addedEntries.includes(e._id))
   const addedMilestones = items.map((i) => i.milestone).filter(Boolean)
-  const availableMilestones = milestones.filter(
-    (m) =>
-      m.project === projectId &&
-      m.completed &&
-      !billedTitles.includes(`Milestone: ${m.title}`) &&
-      !addedMilestones.includes(m._id)
-  )
+  const availableMilestones = openMilestones.filter((m) => !addedMilestones.includes(m._id))
 
   function changeProject(id) {
     setProjectId(id)
@@ -86,9 +111,10 @@ function InvoiceForm() {
       setInfo('No uninvoiced time entries on this project.')
       return
     }
+    // server bills time at my hourly rate
     const rows = availableEntries.map((e) => ({
-      key: newId('item'),
-      description: `${e.note} (${e.hours} h)`,
+      key: nextKey++,
+      description: `${e.note || 'Work'} (${e.hours} h)`,
       qty: e.hours,
       rate: user.hourlyRate,
       timeEntry: e._id,
@@ -104,7 +130,7 @@ function InvoiceForm() {
       return
     }
     const rows = availableMilestones.map((m) => ({
-      key: newId('item'),
+      key: nextKey++,
       description: `Milestone: ${m.title}`,
       qty: 1,
       rate: m.amount,
@@ -126,7 +152,7 @@ function InvoiceForm() {
     return e
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     const found = validate()
     if (Object.keys(found).length) {
@@ -134,40 +160,25 @@ function InvoiceForm() {
       return
     }
 
-    const project = getProject(projectId)
-    const lineItems = items
-      .filter((i) => i.description.trim())
-      .map((i) => ({
-        description: i.description.trim(),
-        qty: Number(i.qty),
-        rate: Number(i.rate),
-        amount: Number(i.qty) * Number(i.rate),
-      }))
-
-    const invoice = {
-      _id: newId('inv'),
-      number: nextInvoiceNumber(),
+    // typed lines go as items, time and milestones go as ids (server makes their lines)
+    const data = {
       project: projectId,
-      freelancer: user._id,
-      client: project.client,
-      items: lineItems,
-      total: lineItems.reduce((sum, i) => sum + i.amount, 0),
-      status: 'unpaid',
       dueDate,
-      paidAt: null,
-      createdAt: new Date().toISOString(),
+      items: items
+        .filter((i) => i.description.trim() && !i.timeEntry && !i.milestone)
+        .map((i) => ({ description: i.description.trim(), qty: Number(i.qty), rate: Number(i.rate) })),
+      timeEntries: items.filter((i) => i.timeEntry).map((i) => i.timeEntry),
+      milestones: items.filter((i) => i.milestone).map((i) => i.milestone),
     }
-    invoices.push(invoice)
 
-    // billed time can't be billed twice
-    items.forEach((i) => {
-      const entry = timeEntries.find((t) => t._id === i.timeEntry)
-      if (entry) entry.invoiced = true
-    })
-
-    addNotification(project.client, `${user.name} sent you invoice ${invoice.number}`, `/invoices/${invoice._id}`)
-
-    navigate(`/invoices/${invoice._id}`)
+    setSaving(true)
+    try {
+      const res = await api.post('/invoices', data)
+      navigate(`/invoices/${res.data._id}`)
+    } catch (err) {
+      setErrors({ items: err.response?.data?.message || 'could not create invoice' })
+      setSaving(false)
+    }
   }
 
   if (user.role !== 'freelancer') {
@@ -244,47 +255,54 @@ function InvoiceForm() {
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((item) => (
-                    <tr key={item.key}>
-                      <td>
-                        <Input
-                          name={`desc-${item.key}`}
-                          aria-label="Description"
-                          placeholder="e.g. Homepage design"
-                          value={item.description}
-                          onChange={(e) => updateItem(item.key, 'description', e.target.value)}
-                        />
-                      </td>
-                      <td>
-                        <Input
-                          type="number"
-                          name={`qty-${item.key}`}
-                          aria-label="Quantity"
-                          min="0"
-                          step="0.25"
-                          value={item.qty}
-                          onChange={(e) => updateItem(item.key, 'qty', e.target.value)}
-                        />
-                      </td>
-                      <td>
-                        <Input
-                          type="number"
-                          name={`rate-${item.key}`}
-                          aria-label="Rate"
-                          min="0"
-                          step="1"
-                          value={item.rate}
-                          onChange={(e) => updateItem(item.key, 'rate', e.target.value)}
-                        />
-                      </td>
-                      <td>{formatMoney(Number(item.qty || 0) * Number(item.rate || 0))}</td>
-                      <td>
-                        <Button variant="ghost" size="sm" onClick={() => removeItem(item.key)} aria-label="Remove item">
-                          <FiTrash2 />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
+                  {items.map((item) => {
+                    // lines from time or milestones are worked out by the server, so no editing them
+                    const locked = Boolean(item.timeEntry || item.milestone)
+                    return (
+                      <tr key={item.key}>
+                        <td>
+                          <Input
+                            name={`desc-${item.key}`}
+                            aria-label="Description"
+                            placeholder="e.g. Homepage design"
+                            value={item.description}
+                            disabled={locked}
+                            onChange={(e) => updateItem(item.key, 'description', e.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <Input
+                            type="number"
+                            name={`qty-${item.key}`}
+                            aria-label="Quantity"
+                            min="0"
+                            step="0.25"
+                            value={item.qty}
+                            disabled={locked}
+                            onChange={(e) => updateItem(item.key, 'qty', e.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <Input
+                            type="number"
+                            name={`rate-${item.key}`}
+                            aria-label="Rate"
+                            min="0"
+                            step="1"
+                            value={item.rate}
+                            disabled={locked}
+                            onChange={(e) => updateItem(item.key, 'rate', e.target.value)}
+                          />
+                        </td>
+                        <td>{formatMoney(Number(item.qty || 0) * Number(item.rate || 0))}</td>
+                        <td>
+                          <Button variant="ghost" size="sm" onClick={() => removeItem(item.key)} aria-label="Remove item">
+                            <FiTrash2 />
+                          </Button>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -303,7 +321,7 @@ function InvoiceForm() {
 
           <div className="row" style={{ justifyContent: 'flex-end' }}>
             <Button variant="secondary" onClick={() => navigate(-1)}>Cancel</Button>
-            <Button type="submit">Create invoice</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Creating...' : 'Create invoice'}</Button>
           </div>
         </Card>
       </form>

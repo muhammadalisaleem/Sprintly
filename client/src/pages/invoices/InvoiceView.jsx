@@ -1,20 +1,30 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { FiArrowLeft, FiPrinter, FiCheck } from 'react-icons/fi'
 import Button from '../../components/Button'
 import StatusBadge from '../../components/StatusBadge'
 import EmptyState from '../../components/EmptyState'
-import { invoices, getCurrentUser, getProject, getUser } from '../../mockData'
+import Loader from '../../components/Loader'
+import { useAuth } from '../../context/AuthContext'
+import api from '../../api'
 import { formatDate, formatMoney } from '../../utils/format'
-import { addNotification } from '../../utils/notifications'
-import { invoiceStatus } from './invoiceUtils'
 import './invoices.css'
 
 function InvoiceView() {
   const { id } = useParams()
-  const user = getCurrentUser()
-  const invoice = invoices.find((inv) => inv._id === id)
-  const [, refresh] = useState(0)
+  const { user } = useAuth()
+  const [invoice, setInvoice] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [paying, setPaying] = useState(false)
+
+  useEffect(() => {
+    api.get('/invoices/' + id)
+      .then((res) => setInvoice(res.data))
+      .catch(() => setInvoice(null))
+      .finally(() => setLoading(false))
+  }, [id])
+
+  if (loading) return <Loader />
 
   if (!invoice) {
     return (
@@ -27,17 +37,23 @@ function InvoiceView() {
     )
   }
 
-  const project = getProject(invoice.project)
-  const freelancer = getUser(invoice.freelancer)
-  const client = getUser(invoice.client)
-  const status = invoiceStatus(invoice)
-  const isClient = user._id === invoice.client
+  const project = invoice.project
+  const freelancer = invoice.freelancer
+  const client = invoice.client
+  const status = invoice.status
+  const isClient = user._id === client._id
 
-  function markPaid() {
-    invoice.status = 'paid'
-    invoice.paidAt = new Date().toISOString()
-    addNotification(invoice.freelancer, `${client.name} paid invoice ${invoice.number}`, `/invoices/${invoice._id}`)
-    refresh((n) => n + 1)
+  // server tells the freelancer it got paid
+  async function markPaid() {
+    if (!window.confirm('Mark invoice ' + invoice.number + ' as paid?')) return
+    setPaying(true)
+    try {
+      const res = await api.patch('/invoices/' + invoice._id + '/pay')
+      setInvoice(res.data)
+    } catch (err) {
+      alert(err.response?.data?.message || 'could not mark as paid')
+    }
+    setPaying(false)
   }
 
   return (
@@ -49,7 +65,7 @@ function InvoiceView() {
             <FiPrinter /> Print
           </Button>
           {status !== 'paid' && isClient && (
-            <Button variant="success" onClick={markPaid}>
+            <Button variant="success" onClick={markPaid} disabled={paying}>
               <FiCheck /> Mark as paid
             </Button>
           )}

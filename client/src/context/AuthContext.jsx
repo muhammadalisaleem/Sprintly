@@ -1,5 +1,7 @@
 import { createContext, useContext, useState } from 'react'
 import api from '../api'
+import { closeSocket } from '../utils/socket'
+import { clearNotifications } from '../utils/notifications'
 
 const AuthContext = createContext(null)
 
@@ -48,6 +50,8 @@ export function AuthProvider({ children }) {
   function logout() {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
+    closeSocket()
+    clearNotifications()
     setUser(null)
   }
 

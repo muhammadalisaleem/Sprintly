@@ -1,55 +1,77 @@
 import { useEffect, useState } from 'react'
-import { notifications, newId } from '../mockData'
+import api from '../api'
+import { getSocket } from './socket'
 
-// The bell and NotificationsPage can be on screen together, so every
-// change fires this event and both re-read the list.
-// Week 4: the API + socket 'notification:new' replace this.
+// The navbar bell and NotificationsPage can be on screen together, so they
+// share this one list. Every change fires this event and both re-read it.
 const EVENT = 'notifications-changed'
+
+let list = []
+let listeningOn = null
 
 function changed() {
   window.dispatchEvent(new Event(EVENT))
 }
 
-export function addNotification(userId, text, link) {
-  notifications.unshift({
-    _id: newId('n'),
-    user: userId,
-    text,
-    link,
-    read: false,
-    createdAt: new Date().toISOString(),
+// get my notifications from the server
+function load() {
+  api.get('/notifications')
+    .then((res) => {
+      list = res.data.notifications
+      changed()
+    })
+    .catch((err) => console.log(err))
+}
+
+// new ones come in live from socket.io
+function listen() {
+  const socket = getSocket()
+  if (!socket || listeningOn === socket) return
+  listeningOn = socket
+  socket.on('notification:new', (n) => {
+    if (list.some((item) => item._id === n._id)) return
+    list = [n, ...list]
+    changed()
   })
-  changed()
 }
 
-export function markRead(id) {
-  const n = notifications.find((item) => item._id === id)
-  if (n) n.read = true
+export async function markRead(id) {
+  list = list.map((n) => (n._id === id ? { ...n, read: true } : n))
   changed()
+  try {
+    await api.patch('/notifications/' + id + '/read')
+  } catch (err) {
+    console.log(err)
+  }
 }
 
-export function markAllRead(userId) {
-  notifications.forEach((n) => {
-    if (n.user === userId) n.read = true
-  })
+export async function markAllRead() {
+  list = list.map((n) => ({ ...n, read: true }))
   changed()
+  try {
+    await api.patch('/notifications/read-all')
+  } catch (err) {
+    console.log(err)
+  }
 }
 
-function userNotifications(userId) {
-  return notifications
-    .filter((n) => n.user === userId)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+// on logout, so the next user doesnt see these
+export function clearNotifications() {
+  list = []
+  listeningOn = null
+  changed()
 }
 
 export function useNotifications(userId) {
-  const [list, setList] = useState(() => userNotifications(userId))
+  const [items, setItems] = useState(list)
 
   useEffect(() => {
-    const update = () => setList(userNotifications(userId))
-    update()
+    const update = () => setItems(list)
     window.addEventListener(EVENT, update)
+    load()
+    listen()
     return () => window.removeEventListener(EVENT, update)
   }, [userId])
 
-  return { notifications: list, unreadCount: list.filter((n) => !n.read).length }
+  return { notifications: items, unreadCount: items.filter((n) => !n.read).length }
 }

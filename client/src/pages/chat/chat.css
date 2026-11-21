@@ -219,3 +219,9 @@
     max-width: 85%;
   }
 }
+
+/* chat inside a project tab, no conversation list */
+.chat-single {
+  grid-template-columns: 1fr;
+  height: 560px;
+}
