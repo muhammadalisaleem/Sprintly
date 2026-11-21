@@ -1,6 +1,5 @@
 import { createContext, useContext, useState } from 'react'
 import api from '../api'
-import { users } from '../mockData'
 
 const AuthContext = createContext(null)
 
@@ -15,21 +14,10 @@ function loadUser() {
   return null
 }
 
-// TEMP: some pages still use mockData and getCurrentUser() reads mockUserId,
-// so save the mock id of the same email for them. user._id stays the real id
-// remove this when all pages get data from the server
-function saveMockId(u) {
-  const mock = users.find((m) => m.email === u.email)
-  if (mock) {
-    localStorage.setItem('mockUserId', mock._id)
-  }
-}
-
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(loadUser)
 
   function saveUser(token, u) {
-    saveMockId(u)
     localStorage.setItem('token', token)
     localStorage.setItem('user', JSON.stringify(u))
     setUser(u)
@@ -60,7 +48,6 @@ export function AuthProvider({ children }) {
   function logout() {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
-    localStorage.removeItem('mockUserId')
     setUser(null)
   }
 

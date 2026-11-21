@@ -322,16 +322,18 @@ export function getUserProjects(userId) {
   return projects.filter((p) => p.freelancer === userId || p.client === userId)
 }
 
-// Logged-in user until AuthContext is ready.
-// Set localStorage.mockUserId (e.g. 'u3') to try the app as a client.
+// TEMP for the pages that still use mock data:
+// gives the mock user with the same email as the logged in user
+// delete this when those pages get their data from the server
 export function getCurrentUser() {
-  let id = 'u1'
   try {
-    id = localStorage.getItem('mockUserId') || id
+    const saved = JSON.parse(localStorage.getItem('user'))
+    const mock = users.find((u) => u.email === saved.email)
+    if (mock) return mock
   } catch {
-    // storage blocked, keep the default user
+    // not logged in or storage blocked
   }
-  return getUser(id) || users[0]
+  return users[0]
 }
 
 // new id for items created in the browser
