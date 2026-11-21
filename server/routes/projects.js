@@ -1,6 +1,7 @@
 const express = require('express')
 const Project = require('../models/Project')
 const User = require('../models/User')
+const Task = require('../models/Task')
 const auth = require('../middleware/auth')
 const notify = require('../utils/notify')
 
@@ -16,7 +17,15 @@ router.get('/', auth, async (req, res) => {
       .populate('client', 'name email')
       .sort({ createdAt: -1 })
 
-    res.json(projects)
+    // add % of tasks done to each one for the progress bar
+    const result = []
+    for (let p of projects) {
+      const total = await Task.countDocuments({ project: p._id })
+      const done = await Task.countDocuments({ project: p._id, status: 'done' })
+      result.push({ ...p.toObject(), progress: total ? Math.round((done / total) * 100) : 0 })
+    }
+
+    res.json(result)
   } catch (err) {
     console.log(err)
     res.status(500).json({ message: 'server error' })

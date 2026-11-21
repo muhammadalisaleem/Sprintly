@@ -9,7 +9,6 @@ import Loader from '../../components/Loader'
 import { useAuth } from '../../context/AuthContext'
 import api from '../../api'
 import { formatDate, formatMoney, isPast } from '../../utils/format'
-import { getProgress } from './projectUtils'
 import './projects.css'
 
 const filters = ['all', 'proposal', 'active', 'completed']
@@ -74,7 +73,7 @@ function ProjectList() {
           {shown.map((project) => {
             // freelancers see the client, clients see the freelancer
             const other = isFreelancer ? project.client : project.freelancer
-            const progress = getProgress(project._id)
+            const progress = project.progress || 0
             const late = project.status !== 'completed' && isPast(project.deadline)
 
             return (

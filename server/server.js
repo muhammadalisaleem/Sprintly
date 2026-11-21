@@ -21,6 +21,8 @@ app.get('/', (req, res) => {
 app.use('/api/auth', require('./routes/auth'))
 app.use('/api/projects', require('./routes/projects'))
 app.use('/api/proposals', require('./routes/proposals'))
+app.use('/api', require('./routes/tasks'))
+app.use('/api', require('./routes/milestones'))
 app.use('/api', require('./routes/time'))
 app.use('/api', require('./routes/invoices'))
 app.use('/api', require('./routes/messages'))
