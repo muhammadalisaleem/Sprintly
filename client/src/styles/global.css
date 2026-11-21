@@ -321,3 +321,18 @@ textarea.input {
     background: #fff;
   }
 }
+
+/* logo (components/Logo.jsx) */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.brand-name {
+  font-family: 'Manrope', var(--font);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  color: #121826;
+}

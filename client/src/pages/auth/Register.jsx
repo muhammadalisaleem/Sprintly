@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { FiZap, FiBriefcase, FiUser } from 'react-icons/fi'
+import { FiBriefcase, FiUser } from 'react-icons/fi'
+import Logo from '../../components/Logo'
 import Button from '../../components/Button'
 import Input from '../../components/Input'
 import { useAuth } from '../../context/AuthContext'
@@ -65,7 +66,7 @@ function Register() {
     <div className="auth-page">
       <div className="auth-card card">
         <div className="auth-logo">
-          <FiZap /> Sprintly
+          <Logo size={36} />
         </div>
         <h2>Create an account</h2>
         <p className="muted">Start managing your projects in minutes</p>

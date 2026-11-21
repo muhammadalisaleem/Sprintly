@@ -1,5 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { FiMenu, FiBell, FiLogOut, FiZap } from 'react-icons/fi'
+import { FiMenu, FiBell, FiLogOut } from 'react-icons/fi'
+import Logo from './Logo'
 import { useNotifications } from '../utils/notifications'
 import { useAuth } from '../context/AuthContext'
 
@@ -27,7 +28,7 @@ function Navbar({ user, onMenuClick }) {
           <FiMenu size={22} />
         </button>
         <Link to="/dashboard" className="logo">
-          <FiZap /> Sprintly
+          <Logo size={30} />
         </Link>
       </div>
 

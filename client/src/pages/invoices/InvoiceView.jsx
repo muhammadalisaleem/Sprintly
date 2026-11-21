@@ -7,6 +7,7 @@ import EmptyState from '../../components/EmptyState'
 import Loader from '../../components/Loader'
 import { useAuth } from '../../context/AuthContext'
 import api from '../../api'
+import Logo from '../../components/Logo'
 import { formatDate, formatMoney } from '../../utils/format'
 import './invoices.css'
 
@@ -81,7 +82,7 @@ function InvoiceView() {
       <div className="invoice-paper">
         <div className="invoice-paper-header">
           <div>
-            <div className="invoice-brand">Sprintly</div>
+            <div className="invoice-brand"><Logo size={30} /></div>
             <p className="muted">Invoice</p>
           </div>
           <div>
